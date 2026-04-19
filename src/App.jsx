@@ -483,6 +483,30 @@ export default function Dashboard() {
   const [sDir,       setSDir]       = useState("desc");
   const [alertOpen,  setAlertOpen]  = useState(false);
 
+  // ── RESPONSIVE CHART CONFIG ────────────────────────────────
+  const [winW, setWinW] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1024
+  );
+  useEffect(() => {
+    const onResize = () => setWinW(window.innerWidth);
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const isMobile = winW <= 640;
+  const isTablet = winW <= 900;
+  // Shared font for all chart ticks — ensures Devanagari renders correctly
+  const CHART_FONT = "'Noto Sans Devanagari','Mukta',sans-serif";
+  // Responsive chart values
+  const CK = {
+    tickSm:   isMobile ? 8.5  : isTablet ? 9.5  : 10.5,  // small axis label size
+    tickMd:   isMobile ? 9    : isTablet ? 10   : 11,     // medium label
+    yWidthLg: isMobile ? 110  : isTablet ? 150  : 168,    // vertical chart Y-axis
+    yWidthGt: isMobile ? 120  : isTablet ? 160  : 210,    // gantt Y-axis
+    barSz:    isMobile ? 14   : isTablet ? 18   : 24,     // bar thickness
+    ganttBar: isMobile ? 16   : isTablet ? 18   : 22,     // gantt bar thickness
+    rightMg:  isMobile ? 52   : 80,                       // right margin for labels
+  };
+
   // ── FETCH ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -717,7 +741,7 @@ export default function Dashboard() {
   // ── LOADING SCREEN ────────────────────────────────────────
   if (loading && projects.length === 0) {
     return (
-      <div style={{ minHeight: "100vh", background: T.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Mukta',sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: T.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Noto Sans Devanagari','Mukta',sans-serif" }}>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         <div style={{ width: 56, height: 56, border: `5px solid ${T.border}`, borderTop: `5px solid ${T.red}`, borderRadius: "50%", animation: "spin .8s linear infinite", marginBottom: 20 }} />
         <div style={{ fontSize: 18, fontWeight: 700, color: T.blue, marginBottom: 6 }}>इटहरी उपमहानगरपालिका</div>
@@ -727,9 +751,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "'Mukta','Noto Sans Devanagari',sans-serif", overflowX: "hidden", maxWidth: "100vw" }}>
+    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "'Noto Sans Devanagari','Mukta',sans-serif", overflowX: "hidden", maxWidth: "100vw" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Mukta:wght@400;600;700;800&display=swap');
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
@@ -737,6 +761,29 @@ export default function Dashboard() {
         /* ── Reset & base ── */
         *{box-sizing:border-box}
         html,body{overflow-x:hidden;max-width:100vw}
+
+        /* ── Global font: Noto Sans Devanagari for crisp Nepali ── */
+        html{font-family:'Noto Sans Devanagari','Mukta',sans-serif}
+        body,*{
+          font-family:'Noto Sans Devanagari','Mukta',sans-serif;
+          -webkit-font-smoothing:antialiased;
+          -moz-osx-font-smoothing:grayscale;
+          text-rendering:optimizeLegibility
+        }
+
+        /* ── SVG text (Recharts labels): crisp Devanagari ── */
+        svg text{
+          font-family:'Noto Sans Devanagari','Mukta',sans-serif!important;
+          text-rendering:geometricPrecision;
+          -webkit-font-smoothing:antialiased
+        }
+        /* SVG shapes: pixel-crisp lines/axes */
+        svg .recharts-cartesian-axis-line,
+        svg .recharts-cartesian-grid-horizontal line,
+        svg .recharts-cartesian-grid-vertical line{
+          shape-rendering:crispEdges
+        }
+
         .ca{animation:fadeUp .4s ease both}
         .hov:hover{background:${T.sky}!important;cursor:pointer}
         .card-hov:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,56,147,.13)!important}
@@ -989,15 +1036,17 @@ export default function Dashboard() {
               </div>
               {secBudget.length > 0 ? (
                 <div className="chart-scroll"><div className="chart-min">
-                <ResponsiveContainer width="100%" height={Math.max(280, secBudget.length * 46)}>
-                  <BarChart data={secBudget} layout="vertical" margin={{ left: 0, right: 80, top: 4, bottom: 4 }}>
+                <ResponsiveContainer width="100%" height={Math.max(260, secBudget.length * 44)}>
+                  <BarChart data={secBudget} layout="vertical" margin={{ left: 0, right: CK.rightMg, top: 4, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
-                    <XAxis type="number" tickFormatter={fmtS} tick={{ fill: T.muted, fontSize: 10.5 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={140} tick={{ fill: T.text, fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                    <XAxis type="number" tickFormatter={fmtS} axisLine={false} tickLine={false}
+                      tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                    <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
+                      tick={{ fill: T.text, fontSize: CK.tickMd, fontWeight: 500, fontFamily: CHART_FONT }} />
                     <Tooltip content={<ChartTip />} />
                     <Bar dataKey="value" name="बजेट (करोड)" radius={[0, 8, 8, 0]} barSize={26}>
                       {secBudget.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      <LabelList dataKey="value" position="right" formatter={v => fmtS(v)} style={{ fill: T.muted, fontSize: 10.5, fontWeight: 700 }} />
+                      <LabelList dataKey="value" position="right" formatter={v => fmtS(v)} style={{ fill: T.muted, fontSize: CK.tickSm, fontWeight: 700, fontFamily: CHART_FONT }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -1034,16 +1083,18 @@ export default function Dashboard() {
             <div className="ca" style={{ ...card, padding: 18, animationDelay: "120ms" }}>
               <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>क्षेत्रगत प्रगति तुलना</h3>
               {secProg.length > 0 ? (
-                <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 340 }}>
+                <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 320 }}>
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={secProg} margin={{ left: 0, right: 8, top: 4, bottom: 55 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                    <XAxis dataKey="name" tick={{ fill: T.text, fontSize: 9.5 }} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fill: T.muted, fontSize: 10 }} domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} width={36} />
+                    <XAxis dataKey="name" angle={-35} textAnchor="end" interval={0}
+                      tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                    <YAxis domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} width={38}
+                      tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
                     <Tooltip content={<ChartTip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                    <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[4,4,0,0]} barSize={14} />
-                    <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[4,4,0,0]} barSize={14} />
+                    <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, fontFamily: CHART_FONT }} />
+                    <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[4,4,0,0]} barSize={12} />
+                    <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[4,4,0,0]} barSize={12} />
                   </BarChart>
                 </ResponsiveContainer>
                 </div></div>
@@ -1251,23 +1302,31 @@ export default function Dashboard() {
             <div style={{ ...card, padding: 18, marginBottom: 16 }} className="ca">
               <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>भौतिक प्रगति समयरेखा</h3>
               {ganttData.length === 0 ? <EmptyState /> : (
-                <div style={{ overflowX: "auto" }}>
-                  <div style={{ minWidth: 600 }}>
-                    <ResponsiveContainer width="100%" height={Math.max(320, ganttData.length * 42)}>
-                      <BarChart data={ganttData} layout="vertical" margin={{ left: 0, right: 70, top: 4, bottom: 4 }}>
+                <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                  <div style={{ minWidth: isMobile ? 380 : 560 }}>
+                    <ResponsiveContainer width="100%" height={Math.max(300, ganttData.length * (isMobile ? 36 : 42))}>
+                      <BarChart data={ganttData} layout="vertical" margin={{ left: 0, right: isMobile ? 42 : 68, top: 4, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={T.border} />
-                        <XAxis type="number" domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} tick={{ fill: T.muted, fontSize: 10 }} />
-                        <YAxis type="category" dataKey="name" width={210} tick={{ fill: T.text, fontSize: 10 }} />
+                        <XAxis type="number" domain={[0, 100]} tickFormatter={v => toNP(v) + "%"}
+                          tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }}
+                          tickCount={isMobile ? 4 : 6} />
+                        <YAxis type="category" dataKey="name" width={CK.yWidthGt}
+                          tick={{ fill: T.text, fontSize: isMobile ? 8 : 10, fontFamily: CHART_FONT }}
+                          tickLine={false} />
                         <Tooltip content={<GanttTip />} />
-                        <Bar dataKey="भौतिक" stackId="prog" name="सम्पन्न" barSize={20}>
+                        <Bar dataKey="भौतिक" stackId="prog" name="सम्पन्न" barSize={CK.ganttBar}>
                           {ganttData.map((e, i) => <Cell key={i} fill={STATUS_COL[e.status] || T.blue} />)}
-                          <LabelList dataKey="भौतिक" position="insideRight" formatter={v => v >= 10 ? toNP(v) + "%" : ""} style={{ fill: "#fff", fontSize: 9, fontWeight: 700 }} />
+                          <LabelList dataKey="भौतिक" position="insideRight"
+                            formatter={v => v >= 15 ? toNP(v) + "%" : ""}
+                            style={{ fill: "#fff", fontSize: isMobile ? 8 : 9, fontWeight: 700, fontFamily: CHART_FONT }} />
                         </Bar>
-                        <Bar dataKey="बाँकी" stackId="prog" name="बाँकी" fill="#DDE3EF" barSize={20} radius={[0, 4, 4, 0]}>
-                          <LabelList dataKey="बाँकी" position="right" formatter={(v, e) => {
-                            const row = ganttData.find(g => g.बाँकी === v);
-                            return row ? toNP(row.भौतिक) + "%" : "";
-                          }} style={{ fill: T.muted, fontSize: 9.5, fontWeight: 700 }} />
+                        <Bar dataKey="बाँकी" stackId="prog" name="बाँकी" fill="#DDE3EF" barSize={CK.ganttBar} radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="बाँकी" position="right"
+                            formatter={(v) => {
+                              const row = ganttData.find(g => g.बाँकी === v);
+                              return row ? toNP(row.भौतिक) + "%" : "";
+                            }}
+                            style={{ fill: T.muted, fontSize: isMobile ? 8 : 9.5, fontWeight: 700, fontFamily: CHART_FONT }} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1538,17 +1597,19 @@ export default function Dashboard() {
                   .map(([n, v]) => ({ name: SEC_MED[n] || n, बजेट: v.b, भुक्तानी: v.p, दायित्व: v.l }))
                   .sort((a, b) => b.बजेट - a.बजेट);
                 return d.length === 0 ? <EmptyState /> : (
-                  <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 360 }}>
+                  <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 340 }}>
                   <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={d} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
+                    <BarChart data={d} margin={{ left: 0, right: 8, top: 4, bottom: 50 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                      <XAxis dataKey="name" tick={{ fill: T.text, fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={50} />
-                      <YAxis tickFormatter={fmtS} tick={{ fill: T.muted, fontSize: 9.5 }} width={44} />
+                      <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} height={55}
+                        tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                      <YAxis tickFormatter={fmtS} width={46}
+                        tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
                       <Tooltip content={<ChartTip />} />
-                      <Legend wrapperStyle={{ fontSize: 10 }} />
-                      <Bar dataKey="बजेट"    fill={T.blue}   radius={[4,4,0,0]} barSize={12} />
-                      <Bar dataKey="भुक्तानी" fill={T.green}  radius={[4,4,0,0]} barSize={12} />
-                      <Bar dataKey="दायित्व"  fill={T.orange} radius={[4,4,0,0]} barSize={12} />
+                      <Legend wrapperStyle={{ fontSize: 10, fontFamily: CHART_FONT }} />
+                      <Bar dataKey="बजेट"    fill={T.blue}   radius={[4,4,0,0]} barSize={10} />
+                      <Bar dataKey="भुक्तानी" fill={T.green}  radius={[4,4,0,0]} barSize={10} />
+                      <Bar dataKey="दायित्व"  fill={T.orange} radius={[4,4,0,0]} barSize={10} />
                     </BarChart>
                   </ResponsiveContainer>
                   </div></div>
