@@ -1173,19 +1173,33 @@ export default function Dashboard() {
             <div className="ca" style={{ ...card, padding: 18, animationDelay: "120ms" }}>
               <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>क्षेत्रगत प्रगति तुलना</h3>
               {secProg.length > 0 ? (
-                <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 320 }}>
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={secProg} margin={{ left: 0, right: 8, top: 4, bottom: 55 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                    <XAxis dataKey="name" angle={-35} textAnchor="end" interval={0}
-                      tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
-                    <YAxis domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} width={38}
-                      tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
-                    <Tooltip content={<ChartTip />} />
-                    <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, fontFamily: CHART_FONT }} />
-                    <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[4,4,0,0]} barSize={12} />
-                    <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[4,4,0,0]} barSize={12} />
-                  </BarChart>
+                <div className="chart-scroll"><div className="chart-min" style={{ minWidth: isMobile ? 0 : 320 }}>
+                <ResponsiveContainer width="100%" height={isMobile ? secProg.length * 38 + 40 : 260}>
+                  {isMobile ? (
+                    <BarChart data={secProg} layout="vertical" margin={{ left: 0, right: 44, top: 4, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tickFormatter={v => toNP(v) + "%"}
+                        tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} tickCount={4} />
+                      <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
+                        tick={<CustomYAxisTick fontSize={CK.tickSm} maxChars={13} />} />
+                      <Tooltip content={<ChartTip />} />
+                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, fontFamily: CHART_FONT }} />
+                      <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[0,8,8,0]} barSize={10} />
+                      <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[0,8,8,0]} barSize={10} />
+                    </BarChart>
+                  ) : (
+                    <BarChart data={secProg} margin={{ left: 0, right: 8, top: 4, bottom: 55 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
+                      <XAxis dataKey="name" angle={-35} textAnchor="end" interval={0}
+                        tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                      <YAxis domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} width={38}
+                        tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                      <Tooltip content={<ChartTip />} />
+                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, fontFamily: CHART_FONT }} />
+                      <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[4,4,0,0]} barSize={12} />
+                      <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[4,4,0,0]} barSize={12} />
+                    </BarChart>
+                  )}
                 </ResponsiveContainer>
                 </div></div>
               ) : <EmptyState />}
@@ -1687,20 +1701,35 @@ export default function Dashboard() {
                   .map(([n, v]) => ({ name: SEC_MED[n] || n, बजेट: v.b, भुक्तानी: v.p, दायित्व: v.l }))
                   .sort((a, b) => b.बजेट - a.बजेट);
                 return d.length === 0 ? <EmptyState /> : (
-                  <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 340 }}>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={d} margin={{ left: 0, right: 8, top: 4, bottom: 50 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                      <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} height={55}
-                        tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
-                      <YAxis tickFormatter={fmtS} width={46}
-                        tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
-                      <Tooltip content={<ChartTip />} />
-                      <Legend wrapperStyle={{ fontSize: 10, fontFamily: CHART_FONT }} />
-                      <Bar dataKey="बजेट"    fill={T.blue}   radius={[4,4,0,0]} barSize={10} />
-                      <Bar dataKey="भुक्तानी" fill={T.green}  radius={[4,4,0,0]} barSize={10} />
-                      <Bar dataKey="दायित्व"  fill={T.orange} radius={[4,4,0,0]} barSize={10} />
-                    </BarChart>
+                  <div className="chart-scroll"><div className="chart-min" style={{ minWidth: isMobile ? 0 : 340 }}>
+                  <ResponsiveContainer width="100%" height={isMobile ? d.length * 44 + 40 : 280}>
+                    {isMobile ? (
+                      <BarChart data={d} layout="vertical" margin={{ left: 0, right: 44, top: 4, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
+                        <XAxis type="number" tickFormatter={fmtS}
+                          tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} tickCount={4} />
+                        <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
+                          tick={<CustomYAxisTick fontSize={CK.tickSm} maxChars={13} />} />
+                        <Tooltip content={<ChartTip />} />
+                        <Legend wrapperStyle={{ fontSize: 10, fontFamily: CHART_FONT }} />
+                        <Bar dataKey="बजेट"    fill={T.blue}   radius={[0,8,8,0]} barSize={8} />
+                        <Bar dataKey="भुक्तानी" fill={T.green}  radius={[0,8,8,0]} barSize={8} />
+                        <Bar dataKey="दायित्व"  fill={T.orange} radius={[0,8,8,0]} barSize={8} />
+                      </BarChart>
+                    ) : (
+                      <BarChart data={d} margin={{ left: 0, right: 8, top: 4, bottom: 50 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
+                        <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} height={55}
+                          tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                        <YAxis tickFormatter={fmtS} width={46}
+                          tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
+                        <Tooltip content={<ChartTip />} />
+                        <Legend wrapperStyle={{ fontSize: 10, fontFamily: CHART_FONT }} />
+                        <Bar dataKey="बजेट"    fill={T.blue}   radius={[4,4,0,0]} barSize={10} />
+                        <Bar dataKey="भुक्तानी" fill={T.green}  radius={[4,4,0,0]} barSize={10} />
+                        <Bar dataKey="दायित्व"  fill={T.orange} radius={[4,4,0,0]} barSize={10} />
+                      </BarChart>
+                    )}
                   </ResponsiveContainer>
                   </div></div>
                 );
