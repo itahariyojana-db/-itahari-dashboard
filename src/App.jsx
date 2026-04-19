@@ -727,62 +727,112 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "'Mukta','Noto Sans Devanagari',sans-serif" }}>
+    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "'Mukta','Noto Sans Devanagari',sans-serif", overflowX: "hidden", maxWidth: "100vw" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&display=swap');
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+        /* ── Reset & base ── */
+        *{box-sizing:border-box}
+        html,body{overflow-x:hidden;max-width:100vw}
         .ca{animation:fadeUp .4s ease both}
         .hov:hover{background:${T.sky}!important;cursor:pointer}
         .card-hov:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,56,147,.13)!important}
-        select,input{font-family:inherit}
-        *{box-sizing:border-box}
+        select,input{font-family:inherit;max-width:100%}
         *::-webkit-scrollbar{width:5px;height:5px}
         *::-webkit-scrollbar-thumb{background:${T.lb};border-radius:3px}
+
+        /* ── Safe word-wrap everywhere ── */
+        h1,h2,h3,h4,p,span,li{word-wrap:break-word;overflow-wrap:break-word}
+
+        /* ── Table base ── */
         .tbl{table-layout:fixed;width:100%;border-collapse:collapse;font-size:11.5px}
         .tbl th,.tbl td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        /* Tab bar: always horizontal-scroll, never wraps */
-        .tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap!important}
+
+        /* ── Tab bar: always horizontal-scroll, no wrap ── */
+        .tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap!important;display:flex}
         .tab-bar::-webkit-scrollbar{display:none}
-        .tab-bar button{white-space:nowrap!important;flex-shrink:0}
-        /* Mobile-only elements hidden on desktop */
+        .tab-bar button{white-space:nowrap!important;flex-shrink:0;touch-action:manipulation}
+
+        /* ── Charts: scroll wrapper ── */
+        .chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+        .chart-min{min-width:420px}
+
+        /* ── Mobile cards: hidden on desktop ── */
         .mobile-cards,.gmobile-cards{display:none}
-        @media(max-width:680px){
-          /* ── Header ── */
-          .hdr-row{flex-direction:column!important;align-items:flex-start!important;gap:8px!important;padding:10px 0 8px!important}
-          .hdr-title{font-size:clamp(14px,4.5vw,20px)!important}
-          .hdr-sub{font-size:9.5px!important}
-          .hdr-logo{width:36px!important;height:36px!important;font-size:17px!important}
-          .hdr-actions{width:100%;justify-content:flex-start!important;flex-wrap:wrap}
-          /* ── Tabs ── */
-          .tab-bar button{font-size:11px!important;padding:7px 10px!important}
-          /* ── KPI / grids ── */
-          .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
-          .overview-grid,.finance-grid{grid-template-columns:1fr!important}
-          .alert-grid{grid-template-columns:1fr!important}
-          /* ── Main padding ── */
-          .main-pad{padding:10px!important}
-          /* ── Table → mobile cards ── */
+
+        /* ── Touch-friendly buttons ── */
+        button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+        /* ════════════════════════════════════
+           TABLET  769px → 1024px
+        ════════════════════════════════════ */
+        @media(max-width:1024px){
+          .kpi-grid{grid-template-columns:repeat(3,1fr)!important}
+          .overview-grid{grid-template-columns:1fr!important}
+        }
+
+        /* ════════════════════════════════════
+           MOBILE LARGE  481px → 768px
+        ════════════════════════════════════ */
+        @media(max-width:768px){
+          .hdr-title{font-size:16px!important}
+          .hdr-sub{font-size:10px!important}
+          .kpi-grid{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
+          .overview-grid,.finance-grid{grid-template-columns:1fr!important;gap:10px!important}
+          .main-pad{padding:12px!important}
+          .modal-box{padding:16px!important;max-height:93vh!important}
+          .modal-3col{grid-template-columns:1fr 1fr!important}
+          .tab-bar button{font-size:11.5px!important;padding:7px 12px!important}
           .tbl-wrap{display:none!important}
           .mobile-cards{display:block!important}
           .gtbl-wrap{display:none!important}
           .gmobile-cards{display:block!important}
-          /* ── Alert panel ── */
-          .alert-panel{max-height:60vh!important}
-          /* ── Modal ── */
-          .modal-box{padding:14px!important;max-height:96vh!important;border-radius:14px!important}
+          .chart-min{min-width:400px}
+        }
+
+        /* ════════════════════════════════════
+           MOBILE SMALL  ≤ 480px
+        ════════════════════════════════════ */
+        @media(max-width:480px){
+          .hdr-row{flex-direction:column!important;align-items:flex-start!important;gap:6px!important;padding:8px 0!important}
+          .hdr-title{font-size:clamp(13px,3.8vw,16px)!important;line-height:1.2!important}
+          .hdr-sub{font-size:9px!important;opacity:.8}
+          .hdr-logo{width:32px!important;height:32px!important;font-size:14px!important}
+          .hdr-actions{width:100%!important;justify-content:flex-start!important;gap:5px!important}
+          .tab-bar button{font-size:10.5px!important;padding:6px 9px!important}
+          .kpi-grid{grid-template-columns:repeat(2,1fr)!important;gap:7px!important}
+          .kpi-val{font-size:17px!important}
+          .kpi-label{font-size:8.5px!important;letter-spacing:.3px!important}
+          .main-pad{padding:8px!important}
+          .alert-panel{max-height:55vh!important;overflow-y:auto!important}
+          .alert-grid{grid-template-columns:1fr!important}
+          .modal-overlay{padding:0!important;align-items:flex-end!important}
+          .modal-box{border-radius:18px 18px 0 0!important;max-height:90vh!important;padding:14px!important;max-width:100vw!important}
           .modal-2col{grid-template-columns:1fr!important}
           .modal-3col{grid-template-columns:1fr 1fr!important}
-          /* ── Charts ── */
-          .chart-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
-          .chart-min{min-width:460px}
+          .filter-row{flex-direction:column!important;gap:6px!important}
+          .filter-row select,.filter-row input{width:100%!important}
+          .chart-min{min-width:360px}
+        }
+
+        /* ════════════════════════════════════
+           VERY SMALL  ≤ 360px
+        ════════════════════════════════════ */
+        @media(max-width:360px){
+          .hdr-title{font-size:12px!important}
+          .tab-bar button{font-size:10px!important;padding:5px 7px!important}
+          .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+          .modal-3col{grid-template-columns:1fr!important}
+          .kpi-val{font-size:15px!important}
         }
       `}</style>
 
       {/* ══════════════ HEADER ══════════════ */}
-      <header style={{ background: T.red, color: "#fff", boxShadow: "0 3px 16px rgba(0,0,0,.2)", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 1440, margin: "0 auto", padding: "0 20px" }}>
+      <header style={{ background: T.red, color: "#fff", boxShadow: "0 3px 16px rgba(0,0,0,.2)", position: "sticky", top: 0, zIndex: 100, width: "100%" }}>
+        <div style={{ maxWidth: 1440, margin: "0 auto", padding: "0 clamp(10px,3vw,20px)" }}>
           {/* Top row */}
           <div className="hdr-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 0 10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -896,12 +946,12 @@ export default function Dashboard() {
               { l: "प्रगतिमा",       v: fmtInt(S.active),      s: "सक्रिय",          i: "⚡", a: T.red,    bg: "#FFECEE" },
               { l: "सम्पन्न",        v: fmtInt(S.done),        s: "पूरा",            i: "🏆", a: T.blue,   bg: T.sky },
             ].map((k, i) => (
-              <div key={i} className="ca card-hov" style={{ ...card, padding: "14px 16px", overflow: "hidden", transition: "all .3s", animationDelay: `${i*60}ms`, background: `linear-gradient(135deg,${T.white},${k.bg})` }}>
-                <p style={{ margin: 0, fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>{k.l}</p>
-                <p style={{ margin: "5px 0 2px", fontSize: 22, fontWeight: 800, color: k.a }}>{k.v}</p>
+              <div key={i} className="ca card-hov" style={{ ...card, padding: "12px 14px", overflow: "hidden", transition: "all .3s", animationDelay: `${i*60}ms`, background: `linear-gradient(135deg,${T.white},${k.bg})` }}>
+                <p className="kpi-label" style={{ margin: 0, fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>{k.l}</p>
+                <p className="kpi-val" style={{ margin: "4px 0 2px", fontSize: 22, fontWeight: 800, color: k.a }}>{k.v}</p>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 10, color: T.muted }}>{k.s}</span>
-                  <span style={{ fontSize: 20 }}>{k.i}</span>
+                  <span style={{ fontSize: 18 }}>{k.i}</span>
                 </div>
               </div>
             ))}
@@ -967,17 +1017,19 @@ export default function Dashboard() {
             <div className="ca" style={{ ...card, padding: 18, animationDelay: "120ms" }}>
               <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>क्षेत्रगत प्रगति तुलना</h3>
               {secProg.length > 0 ? (
+                <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 340 }}>
                 <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={secProg} margin={{ left: 0, right: 8, top: 4, bottom: 60 }}>
+                  <BarChart data={secProg} margin={{ left: 0, right: 8, top: 4, bottom: 55 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                    <XAxis dataKey="name" tick={{ fill: T.text, fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
-                    <YAxis tick={{ fill: T.muted, fontSize: 10 }} domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} />
+                    <XAxis dataKey="name" tick={{ fill: T.text, fontSize: 9.5 }} angle={-35} textAnchor="end" interval={0} />
+                    <YAxis tick={{ fill: T.muted, fontSize: 10 }} domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} width={36} />
                     <Tooltip content={<ChartTip />} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
                     <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[4,4,0,0]} barSize={14} />
                     <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[4,4,0,0]} barSize={14} />
                   </BarChart>
                 </ResponsiveContainer>
+                </div></div>
               ) : <EmptyState />}
             </div>
 
@@ -1039,16 +1091,16 @@ export default function Dashboard() {
                 ))}
               </div>
               {/* Search + dropdowns */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <div className="filter-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="🔍 योजना, ठेक्का नं., ठेकेदार, अवस्था…"
-                  style={{ flex: "1 1 220px", padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.sky, color: T.text, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
+                  placeholder="🔍 योजना, ठेक्का नं., ठेकेदार…"
+                  style={{ flex: "1 1 200px", minWidth: 0, padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.sky, color: T.text, fontSize: 12.5, outline: "none", width: "100%" }} />
                 <select value={fStatus} onChange={e => setFStatus(e.target.value)}
-                  style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, cursor: "pointer", background: T.white }}>
+                  style={{ flex: "1 1 130px", minWidth: 0, padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, cursor: "pointer", background: T.white }}>
                   {statuses.map(o => <option key={o}>{o}</option>)}
                 </select>
                 <select value={fSector} onChange={e => setFSector(e.target.value)}
-                  style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, cursor: "pointer", background: T.white }}>
+                  style={{ flex: "1 1 130px", minWidth: 0, padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, cursor: "pointer", background: T.white }}>
                   {sectors.map(o => <option key={o}>{o}</option>)}
                 </select>
                 <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 700, background: T.sky, padding: "5px 10px", borderRadius: 7, flexShrink: 0 }}>
@@ -1469,18 +1521,20 @@ export default function Dashboard() {
                   .map(([n, v]) => ({ name: SEC_MED[n] || n, बजेट: v.b, भुक्तानी: v.p, दायित्व: v.l }))
                   .sort((a, b) => b.बजेट - a.बजेट);
                 return d.length === 0 ? <EmptyState /> : (
+                  <div className="chart-scroll"><div className="chart-min" style={{ minWidth: 360 }}>
                   <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={d} margin={{ left: 10, right: 8, top: 4, bottom: 4 }}>
+                    <BarChart data={d} margin={{ left: 0, right: 8, top: 4, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
-                      <XAxis dataKey="name" tick={{ fill: T.text, fontSize: 11 }} />
-                      <YAxis tickFormatter={fmtS} tick={{ fill: T.muted, fontSize: 10 }} />
+                      <XAxis dataKey="name" tick={{ fill: T.text, fontSize: 10 }} angle={-20} textAnchor="end" interval={0} height={50} />
+                      <YAxis tickFormatter={fmtS} tick={{ fill: T.muted, fontSize: 9.5 }} width={44} />
                       <Tooltip content={<ChartTip />} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="बजेट"    fill={T.blue}   radius={[4,4,0,0]} barSize={14} />
-                      <Bar dataKey="भुक्तानी" fill={T.green}  radius={[4,4,0,0]} barSize={14} />
-                      <Bar dataKey="दायित्व"  fill={T.orange} radius={[4,4,0,0]} barSize={14} />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      <Bar dataKey="बजेट"    fill={T.blue}   radius={[4,4,0,0]} barSize={12} />
+                      <Bar dataKey="भुक्तानी" fill={T.green}  radius={[4,4,0,0]} barSize={12} />
+                      <Bar dataKey="दायित्व"  fill={T.orange} radius={[4,4,0,0]} barSize={12} />
                     </BarChart>
                   </ResponsiveContainer>
+                  </div></div>
                 );
               })()}
             </div>
@@ -1532,7 +1586,7 @@ export default function Dashboard() {
 
       {/* ══════════════ DETAIL MODAL ══════════════ */}
       {sel && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,56,147,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16 }}
+        <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,56,147,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16 }}
           onClick={() => setSel(null)}>
           <div className="modal-box" style={{ ...card, maxWidth: 680, width: "100%", maxHeight: "90vh", overflow: "auto", padding: 24, borderTop: `4px solid ${T.red}` }}
             onClick={e => e.stopPropagation()}>
