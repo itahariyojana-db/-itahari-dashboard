@@ -737,14 +737,46 @@ export default function Dashboard() {
         .hov:hover{background:${T.sky}!important;cursor:pointer}
         .card-hov:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,56,147,.13)!important}
         select,input{font-family:inherit}
+        *{box-sizing:border-box}
         *::-webkit-scrollbar{width:5px;height:5px}
         *::-webkit-scrollbar-thumb{background:${T.lb};border-radius:3px}
         .tbl{table-layout:fixed;width:100%;border-collapse:collapse;font-size:11.5px}
         .tbl th,.tbl td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        @media(max-width:768px){
-          .grid2{grid-template-columns:1fr!important}
-          .tab-bar{flex-wrap:wrap!important}
+        /* Tab bar: always horizontal-scroll, never wraps */
+        .tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap!important}
+        .tab-bar::-webkit-scrollbar{display:none}
+        .tab-bar button{white-space:nowrap!important;flex-shrink:0}
+        /* Mobile-only elements hidden on desktop */
+        .mobile-cards,.gmobile-cards{display:none}
+        @media(max-width:680px){
+          /* ── Header ── */
+          .hdr-row{flex-direction:column!important;align-items:flex-start!important;gap:8px!important;padding:10px 0 8px!important}
+          .hdr-title{font-size:clamp(14px,4.5vw,20px)!important}
+          .hdr-sub{font-size:9.5px!important}
+          .hdr-logo{width:36px!important;height:36px!important;font-size:17px!important}
+          .hdr-actions{width:100%;justify-content:flex-start!important;flex-wrap:wrap}
+          /* ── Tabs ── */
+          .tab-bar button{font-size:11px!important;padding:7px 10px!important}
+          /* ── KPI / grids ── */
           .kpi-grid{grid-template-columns:repeat(2,1fr)!important}
+          .overview-grid,.finance-grid{grid-template-columns:1fr!important}
+          .alert-grid{grid-template-columns:1fr!important}
+          /* ── Main padding ── */
+          .main-pad{padding:10px!important}
+          /* ── Table → mobile cards ── */
+          .tbl-wrap{display:none!important}
+          .mobile-cards{display:block!important}
+          .gtbl-wrap{display:none!important}
+          .gmobile-cards{display:block!important}
+          /* ── Alert panel ── */
+          .alert-panel{max-height:60vh!important}
+          /* ── Modal ── */
+          .modal-box{padding:14px!important;max-height:96vh!important;border-radius:14px!important}
+          .modal-2col{grid-template-columns:1fr!important}
+          .modal-3col{grid-template-columns:1fr 1fr!important}
+          /* ── Charts ── */
+          .chart-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+          .chart-min{min-width:460px}
         }
       `}</style>
 
@@ -752,16 +784,16 @@ export default function Dashboard() {
       <header style={{ background: T.red, color: "#fff", boxShadow: "0 3px 16px rgba(0,0,0,.2)", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 1440, margin: "0 auto", padding: "0 20px" }}>
           {/* Top row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 0 10px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="hdr-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 0 10px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {/* Nepal govt emblem placeholder */}
-              <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,.18)", border: "2px solid rgba(255,255,255,.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, flexShrink: 0 }}>🏛</div>
+              <div className="hdr-logo" style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(255,255,255,.18)", border: "2px solid rgba(255,255,255,.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, flexShrink: 0 }}>🏛</div>
               <div>
-                <h1 style={hdrTitle}>इटहरी उपमहानगरपालिका</h1>
-                <p style={{ margin: 0, fontSize: 11, opacity: .85 }}>ठेक्का तथा योजना अनुगमन ड्यासबोर्ड — आ.व. ०८२/०८३</p>
+                <h1 className="hdr-title" style={hdrTitle}>इटहरी उपमहानगरपालिका</h1>
+                <p className="hdr-sub" style={{ margin: 0, fontSize: 11, opacity: .85 }}>ठेक्का तथा योजना अनुगमन ड्यासबोर्ड — आ.व. ०८२/०८३</p>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div className="hdr-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {/* Alert bell */}
               {alerts.length > 0 && (
                 <button onClick={() => setAlertOpen(v => !v)}
@@ -796,7 +828,7 @@ export default function Dashboard() {
 
       {/* ══════════════ ALERTS PANEL ══════════════ */}
       {alertOpen && alerts.length > 0 && (
-        <div style={{ background: "#FFF8E1", borderBottom: `2px solid ${T.orange}`, maxHeight: 320, overflowY: "auto" }}>
+        <div className="alert-panel" style={{ background: "#FFF8E1", borderBottom: `2px solid ${T.orange}`, maxHeight: 320, overflowY: "auto" }}>
           <div style={{ maxWidth: 1440, margin: "0 auto", padding: "10px 20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -814,7 +846,7 @@ export default function Dashboard() {
               </div>
               <button onClick={() => setAlertOpen(false)} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: T.muted }}>✕</button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 8 }}>
+            <div className="alert-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 8 }}>
               {alerts.map((a, i) => {
                 const gs = GSTATUS_STYLE[a.st];
                 const exp = parseBS(a.g.expiry);
@@ -851,7 +883,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <main style={{ maxWidth: 1440, margin: "0 auto", padding: "18px 20px" }}>
+      <main className="main-pad" style={{ maxWidth: 1440, margin: "0 auto", padding: "18px 20px" }}>
 
         {/* ══════════════ KPI CARDS ══════════════ */}
         {(tab === "overview" || tab === "finance") && (
@@ -878,7 +910,7 @@ export default function Dashboard() {
 
         {/* ══════════════ OVERVIEW TAB ══════════════ */}
         {tab === "overview" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="overview-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
             {/* ── Row 1: Sector budget bar — FULL WIDTH, prominent ── */}
             <div className="ca" style={{ ...card, padding: "18px 22px", gridColumn: "1/-1" }}>
@@ -889,11 +921,12 @@ export default function Dashboard() {
                 </span>
               </div>
               {secBudget.length > 0 ? (
+                <div className="chart-scroll"><div className="chart-min">
                 <ResponsiveContainer width="100%" height={Math.max(280, secBudget.length * 46)}>
-                  <BarChart data={secBudget} layout="vertical" margin={{ left: 0, right: 100, top: 4, bottom: 4 }}>
+                  <BarChart data={secBudget} layout="vertical" margin={{ left: 0, right: 80, top: 4, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
                     <XAxis type="number" tickFormatter={fmtS} tick={{ fill: T.muted, fontSize: 10.5 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={168} tick={{ fill: T.text, fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={140} tick={{ fill: T.text, fontSize: 11, fontWeight: 500 }} axisLine={false} tickLine={false} />
                     <Tooltip content={<ChartTip />} />
                     <Bar dataKey="value" name="बजेट (करोड)" radius={[0, 8, 8, 0]} barSize={26}>
                       {secBudget.map((e, i) => <Cell key={i} fill={e.color} />)}
@@ -901,6 +934,7 @@ export default function Dashboard() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                </div></div>
               ) : <EmptyState />}
             </div>
 
@@ -1023,8 +1057,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Table */}
-            <div style={{ ...card, overflow: "clip" }}>
+            {/* Table — hidden on mobile, replaced by cards */}
+            <div className="tbl-wrap" style={{ ...card, overflow: "clip" }}>
               <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "68vh" }}>
                 <table className="tbl">
                   <colgroup>
@@ -1084,6 +1118,43 @@ export default function Dashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Mobile project cards — shown only on small screens via CSS */}
+            <div className="mobile-cards">
+              {filtered.length === 0 ? (
+                <div style={{ padding: 28, textAlign: "center", color: T.muted, fontSize: 13 }}>कुनै योजना फेला परेन</div>
+              ) : filtered.map((p) => {
+                const hasAlert = expiryStatus(p.ins?.expiry) || expiryStatus(p.pbg?.expiry) || expiryStatus(p.apg?.expiry);
+                const alertCol = hasAlert === "expired" ? T.expired : hasAlert === "near" ? T.near : null;
+                const barCol = p.physicalProgress >= 75 ? T.green : p.physicalProgress >= 50 ? T.gold : p.physicalProgress >= 25 ? T.orange : T.red;
+                return (
+                  <div key={p.id} onClick={() => setSel(p)}
+                    style={{ background: T.white, border: `1px solid ${alertCol || T.border}`, borderLeft: `4px solid ${alertCol || SEC_COL[p.budgetHead] || T.muted}`, borderRadius: 12, padding: "12px 14px", marginBottom: 10, cursor: "pointer" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text, lineHeight: 1.4, marginBottom: 5 }}>{p.projectName}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
+                      <span style={{ fontSize: 10, color: T.muted }}>{p.contractId || "—"}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: `${STATUS_COL[p.workStatus] || "#78909C"}18`, color: STATUS_COL[p.workStatus] || "#78909C" }}>● {p.workStatus || "—"}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 10 }}>
+                      <span style={{ color: T.muted }}>कुल: <strong style={{ color: T.text }}>{fmt(p.totalAmount)}</strong></span>
+                      <span style={{ color: T.muted }}>भुक्तानी: <strong style={{ color: T.green }}>{fmt(p.paymentAmount)}</strong></span>
+                    </div>
+                    <div style={{ marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginBottom: 3 }}>
+                        <span>भौतिक प्रगति</span><span style={{ fontWeight: 700, color: barCol }}>{fmtPct(p.physicalProgress)}</span>
+                      </div>
+                      <ProgressBar value={p.physicalProgress} color={barCol} height={7} />
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginBottom: 3 }}>
+                        <span>आर्थिक प्रगति</span><span style={{ fontWeight: 700, color: T.blue }}>{fmtPct(p.financialProgress)}</span>
+                      </div>
+                      <ProgressBar value={p.financialProgress} color={T.lb} height={7} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1253,8 +1324,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Guarantee table */}
-              <div style={{ ...card, overflow: "clip" }} className="ca">
+              {/* Guarantee table — hidden on mobile */}
+              <div className="gtbl-wrap ca" style={{ ...card, overflow: "clip" }}>
                 <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "65vh" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5, tableLayout: "fixed" }}>
                     <colgroup>
@@ -1336,13 +1407,51 @@ export default function Dashboard() {
                   </table>
                 </div>
               </div>
+
+              {/* Mobile guarantee cards — shown only on small screens via CSS */}
+              <div className="gmobile-cards">
+                {visibleG.length === 0 ? (
+                  <div style={{ padding: 28, textAlign: "center", color: T.muted, fontSize: 13 }}>कुनै ग्यारेन्टी फेला परेन</div>
+                ) : visibleG.map((item) => {
+                  const { project: p, key: gKey, g, st } = item;
+                  const gs = st ? GSTATUS_STYLE[st] : null;
+                  const exp = parseBS(g.expiry);
+                  const daysLeft = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
+                  const gTypeColor = gKey === "ins" ? T.blue : gKey === "pbg" ? T.green : T.orange;
+                  const hasRef = gKey !== "ins" && g.ref && g.ref !== "—";
+                  return (
+                    <div key={`${p.id}-${gKey}`} onClick={() => setSel(p)}
+                      style={{ background: gs ? gs.bg : T.white, border: `1px solid ${gs ? gs.color : T.border}`, borderLeft: `4px solid ${gs ? gs.color : gTypeColor}`, borderRadius: 12, padding: "12px 14px", marginBottom: 9, cursor: "pointer" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, flex: 1, marginRight: 8, lineHeight: 1.4 }}>{p.projectName}</div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: `${gTypeColor}18`, color: gTypeColor, flexShrink: 0 }}>
+                          {gKey === "ins" ? "बीमा" : gKey.toUpperCase()}
+                        </span>
+                      </div>
+                      {gs && <div style={{ fontSize: 11.5, fontWeight: 700, color: gs.color, marginBottom: 7 }}>{gs.icon} {gs.label}</div>}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px", fontSize: 11.5 }}>
+                        <div><span style={{ color: T.muted }}>बैंक: </span><span style={{ fontWeight: 600 }}>{g.bank || "—"}</span></div>
+                        <div><span style={{ color: T.muted }}>रकम: </span><span style={{ fontWeight: 600 }}>{g.amt > 0 ? fmt(g.amt) : "—"}</span></div>
+                        {hasRef && <div style={{ gridColumn: "1/-1" }}><span style={{ color: T.muted }}>जमानत नं.: </span><span style={{ fontWeight: 700, color: T.blue }}>{g.ref}</span></div>}
+                        <div><span style={{ color: T.muted }}>जारी: </span><span>{g.issue || "—"}</span></div>
+                        <div><span style={{ color: T.muted }}>म्याद: </span><span style={{ fontWeight: 700, color: gs ? gs.color : T.text }}>{g.expiry || "—"}</span></div>
+                      </div>
+                      {daysLeft !== null && (
+                        <div style={{ marginTop: 7, fontSize: 11, fontWeight: 700, color: gs ? gs.color : T.muted }}>
+                          {daysLeft < 0 ? `${toNP(Math.abs(daysLeft))} दिन अघि म्याद सकियो` : `${toNP(daysLeft)} दिन बाँकी`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })()}
 
         {/* ══════════════ FINANCE TAB ══════════════ */}
         {tab === "finance" && (
-          <div className="grid2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="finance-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
             {/* Budget vs Payment grouped bar — full width */}
             <div style={{ ...card, padding: 18, gridColumn: "1/-1" }} className="ca">
@@ -1425,7 +1534,7 @@ export default function Dashboard() {
       {sel && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,56,147,.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16 }}
           onClick={() => setSel(null)}>
-          <div style={{ ...card, maxWidth: 680, width: "100%", maxHeight: "90vh", overflow: "auto", padding: 24, borderTop: `4px solid ${T.red}` }}
+          <div className="modal-box" style={{ ...card, maxWidth: 680, width: "100%", maxHeight: "90vh", overflow: "auto", padding: 24, borderTop: `4px solid ${T.red}` }}
             onClick={e => e.stopPropagation()}>
 
             {/* Modal header */}
@@ -1476,7 +1585,7 @@ export default function Dashboard() {
               return (
                 <div style={{ marginBottom: 14 }}>
                   {/* ── ठेकेदार / मिति / रकम ── */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <div className="modal-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                     <div style={{ background: T.sky, borderRadius: 8, padding: "8px 11px", gridColumn: "1/-1" }}>
                       <p style={{ margin: 0, fontSize: 10, color: T.muted, fontWeight: 600 }}>ठेकेदार</p>
                       <p style={{ margin: "3px 0 0", fontSize: 12, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sel.contractor || "—"}</p>
@@ -1518,7 +1627,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* 3 key boxes: col 29 | col 30 | col 31 (AF) */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+                    <div className="modal-3col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
                       <FC l="प्राविधिक मूल्यांकन"
                           v={ev > 0 ? fmt(ev) : "—"}
                           c={T.gold}
@@ -1593,7 +1702,7 @@ export default function Dashboard() {
 
             {/* Dates */}
             {(sel.dueDate || sel.doneDate || sel.deadlineExt) && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+              <div className="modal-3col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
                 {[["सम्पन्न गर्नुपर्ने", sel.dueDate], ["सम्पन्न मिति", sel.doneDate], ["म्याद थप", sel.deadlineExt]].map(([l, v]) => v ? (
                   <div key={l} style={{ background: T.sky, borderRadius: 9, padding: "8px 12px" }}>
                     <p style={{ margin: 0, fontSize: 10, color: T.muted }}>{l}</p>
