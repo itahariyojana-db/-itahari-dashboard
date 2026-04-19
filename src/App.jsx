@@ -498,32 +498,27 @@ function wrapDevanagari(text, maxCharsPerLine) {
   return lines;
 }
 
-// fontFamily must go in `style` (CSS inline), NOT as an SVG presentation
-// attribute — presentation attributes have lower specificity than ANY inline
-// style, so Recharts' own injected styles would silently override them.
-const TICK_STYLE = (fontSize, fill) => ({
-  fontFamily: DEV_FONT,
-  fontSize: `${fontSize}px`,
-  fill,
-  textRendering: "geometricPrecision",
-});
-
-// Custom Y-axis tick — used for ALL vertical bar charts.
-// Pass as a function: tick={(props) => <CustomYAxisTick {...props} />}
-// NOT as an element: tick={<CustomYAxisTick />}  ← Recharts cloneElement
-// may silently drop custom props in v2.12.
-const CustomYAxisTick = ({ x = 0, y = 0, payload, fontSize = 10, maxChars = 18, fill = "#1A2332" }) => {
-  if (!payload?.value) return null;
+// Custom Y-axis tick — used for ALL vertical bar charts
+const CustomYAxisTick = ({ x, y, payload, fontSize = 10, maxChars = 18, fill = "#1A2332" }) => {
   const lines = wrapDevanagari(payload.value, maxChars);
   const lh    = fontSize * 1.35;
+  // Centre the multi-line block on the tick's y coordinate
   const startDy = lines.length === 1 ? "0.35em" : `${-((lines.length - 1) * lh) / 2}px`;
-  const ts = TICK_STYLE(fontSize, fill);
   return (
     <g transform={`translate(${x},${y})`}>
-      <text textAnchor="end" style={ts}>
+      <text
+        textAnchor="end"
+        fill={fill}
+        fontSize={fontSize}
+        fontFamily={DEV_FONT}
+        style={{ textRendering: "geometricPrecision" }}
+      >
         {lines.map((line, i) => (
-          <tspan key={i} x={-4} dy={i === 0 ? startDy : `${lh}px`}
-            style={{ fontFamily: DEV_FONT }}>
+          <tspan
+            key={i}
+            x={-4}
+            dy={i === 0 ? startDy : `${lh}px`}
+          >
             {line}
           </tspan>
         ))}
@@ -532,19 +527,22 @@ const CustomYAxisTick = ({ x = 0, y = 0, payload, fontSize = 10, maxChars = 18, 
   );
 };
 
-// Variant for Gantt chart
-const GanttYAxisTick = ({ x = 0, y = 0, payload, fontSize = 9.5, maxChars = 22, fill = "#1A2332" }) => {
-  if (!payload?.value) return null;
+// Variant for Gantt chart (left-aligned, colour per status)
+const GanttYAxisTick = ({ x, y, payload, fontSize = 9.5, maxChars = 22, fill = "#1A2332" }) => {
   const lines = wrapDevanagari(payload.value, maxChars);
   const lh    = fontSize * 1.3;
   const startDy = lines.length === 1 ? "0.35em" : `${-((lines.length - 1) * lh) / 2}px`;
-  const ts = TICK_STYLE(fontSize, fill);
   return (
     <g transform={`translate(${x},${y})`}>
-      <text textAnchor="end" style={ts}>
+      <text
+        textAnchor="end"
+        fill={fill}
+        fontSize={fontSize}
+        fontFamily={DEV_FONT}
+        style={{ textRendering: "geometricPrecision" }}
+      >
         {lines.map((line, i) => (
-          <tspan key={i} x={-4} dy={i === 0 ? startDy : `${lh}px`}
-            style={{ fontFamily: DEV_FONT }}>
+          <tspan key={i} x={-4} dy={i === 0 ? startDy : `${lh}px`}>
             {line}
           </tspan>
         ))}
@@ -864,7 +862,7 @@ export default function Dashboard() {
         }
 
         /* ── SVG text (Recharts labels): crisp Devanagari ── */
-        svg text, svg tspan{
+        svg text{
           font-family:'Noto Sans Devanagari','Mukta',sans-serif!important;
           text-rendering:geometricPrecision;
           -webkit-font-smoothing:antialiased
@@ -1134,7 +1132,7 @@ export default function Dashboard() {
                     <XAxis type="number" tickFormatter={fmtS} axisLine={false} tickLine={false}
                       tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
                     <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
-                      tick={(p) => <CustomYAxisTick {...p} fontSize={CK.tickMd} maxChars={isMobile ? 13 : 18} />} />
+                      tick={<CustomYAxisTick fontSize={CK.tickMd} maxChars={isMobile ? 13 : 18} />} />
                     <Tooltip content={<ChartTip />} />
                     <Bar dataKey="value" name="बजेट (करोड)" radius={[0, 8, 8, 0]} barSize={26}>
                       {secBudget.map((e, i) => <Cell key={i} fill={e.color} />)}
@@ -1183,7 +1181,7 @@ export default function Dashboard() {
                       <XAxis type="number" domain={[0, 100]} tickFormatter={v => toNP(v) + "%"}
                         tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} tickCount={4} />
                       <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
-                        tick={(p) => <CustomYAxisTick {...p} fontSize={CK.tickSm} maxChars={13} />} />
+                        tick={<CustomYAxisTick fontSize={CK.tickSm} maxChars={13} />} />
                       <Tooltip content={<ChartTip />} />
                       <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, fontFamily: CHART_FONT }} />
                       <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[0,8,8,0]} barSize={10} />
@@ -1417,7 +1415,7 @@ export default function Dashboard() {
                           tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }}
                           tickCount={isMobile ? 4 : 6} />
                         <YAxis type="category" dataKey="name" width={CK.yWidthGt}
-                          tick={(p) => <GanttYAxisTick {...p} fontSize={isMobile ? 8 : 9.5} maxChars={isMobile ? 18 : 24} />}
+                          tick={<GanttYAxisTick fontSize={isMobile ? 8 : 9.5} maxChars={isMobile ? 18 : 24} />}
                           tickLine={false} />
                         <Tooltip content={<GanttTip />} />
                         <Bar dataKey="भौतिक" stackId="prog" name="सम्पन्न" barSize={CK.ganttBar}>
@@ -1711,7 +1709,7 @@ export default function Dashboard() {
                         <XAxis type="number" tickFormatter={fmtS}
                           tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} tickCount={4} />
                         <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
-                          tick={(p) => <CustomYAxisTick {...p} fontSize={CK.tickSm} maxChars={13} />} />
+                          tick={<CustomYAxisTick fontSize={CK.tickSm} maxChars={13} />} />
                         <Tooltip content={<ChartTip />} />
                         <Legend wrapperStyle={{ fontSize: 10, fontFamily: CHART_FONT }} />
                         <Bar dataKey="बजेट"    fill={T.blue}   radius={[0,8,8,0]} barSize={8} />
