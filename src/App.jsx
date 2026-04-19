@@ -461,6 +461,96 @@ const ProgressBar = ({ value = 0, color, height = 8 }) => (
   </div>
 );
 
+// ─────────────────────────────────────────────────────────────────
+//  DEVANAGARI-SAFE Y-AXIS TICK
+//  Root cause of broken conjuncts: Recharts passes a pixel `width`
+//  constraint to the default tick renderer, which applies CSS
+//  `overflow:hidden` + `text-overflow:ellipsis` at the character
+//  level — chopping mid-akshara.  SVG <text> does NOT support
+//  CSS word-break/overflow-wrap, so the only safe approach is to
+//  split the label into lines at SPACE / "/" boundaries ourselves
+//  and render each line as a <tspan>.  The font-family is set
+//  directly on the SVG <text> node (not inherited) so iOS Safari
+//  uses the correct Devanagari GSUB lookups for conjunct formation.
+// ─────────────────────────────────────────────────────────────────
+const DEV_FONT = "'Noto Sans Devanagari','Mukta',system-ui,sans-serif";
+
+function wrapDevanagari(text, maxCharsPerLine) {
+  // Split only at spaces or "/" — never inside a Devanagari syllable
+  const tokens = String(text).split(/(?<=[/ ])|(?=[/ ])/);
+  const lines  = [];
+  let cur      = "";
+  for (const tok of tokens) {
+    const probe = cur + tok;
+    if (probe.trim().length > maxCharsPerLine && cur.trim()) {
+      lines.push(cur.trim());
+      cur = tok.trimStart();
+    } else {
+      cur = probe;
+    }
+  }
+  if (cur.trim()) lines.push(cur.trim());
+  // Cap at 2 lines, add ellipsis if truncated
+  if (lines.length > 2) {
+    lines.length = 2;
+    lines[1] = lines[1].slice(0, -1) + "…";
+  }
+  return lines;
+}
+
+// Custom Y-axis tick — used for ALL vertical bar charts
+const CustomYAxisTick = ({ x, y, payload, fontSize = 10, maxChars = 18, fill = "#1A2332" }) => {
+  const lines = wrapDevanagari(payload.value, maxChars);
+  const lh    = fontSize * 1.35;
+  // Centre the multi-line block on the tick's y coordinate
+  const startDy = lines.length === 1 ? "0.35em" : `${-((lines.length - 1) * lh) / 2}px`;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        textAnchor="end"
+        fill={fill}
+        fontSize={fontSize}
+        fontFamily={DEV_FONT}
+        style={{ textRendering: "geometricPrecision" }}
+      >
+        {lines.map((line, i) => (
+          <tspan
+            key={i}
+            x={-4}
+            dy={i === 0 ? startDy : `${lh}px`}
+          >
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+};
+
+// Variant for Gantt chart (left-aligned, colour per status)
+const GanttYAxisTick = ({ x, y, payload, fontSize = 9.5, maxChars = 22, fill = "#1A2332" }) => {
+  const lines = wrapDevanagari(payload.value, maxChars);
+  const lh    = fontSize * 1.3;
+  const startDy = lines.length === 1 ? "0.35em" : `${-((lines.length - 1) * lh) / 2}px`;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        textAnchor="end"
+        fill={fill}
+        fontSize={fontSize}
+        fontFamily={DEV_FONT}
+        style={{ textRendering: "geometricPrecision" }}
+      >
+        {lines.map((line, i) => (
+          <tspan key={i} x={-4} dy={i === 0 ? startDy : `${lh}px`}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════
 //  MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════
@@ -1042,7 +1132,7 @@ export default function Dashboard() {
                     <XAxis type="number" tickFormatter={fmtS} axisLine={false} tickLine={false}
                       tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
                     <YAxis type="category" dataKey="name" width={CK.yWidthLg} axisLine={false} tickLine={false}
-                      tick={{ fill: T.text, fontSize: CK.tickMd, fontWeight: 500, fontFamily: CHART_FONT }} />
+                      tick={<CustomYAxisTick fontSize={CK.tickMd} maxChars={isMobile ? 13 : 18} />} />
                     <Tooltip content={<ChartTip />} />
                     <Bar dataKey="value" name="बजेट (करोड)" radius={[0, 8, 8, 0]} barSize={26}>
                       {secBudget.map((e, i) => <Cell key={i} fill={e.color} />)}
@@ -1311,7 +1401,7 @@ export default function Dashboard() {
                           tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }}
                           tickCount={isMobile ? 4 : 6} />
                         <YAxis type="category" dataKey="name" width={CK.yWidthGt}
-                          tick={{ fill: T.text, fontSize: isMobile ? 8 : 10, fontFamily: CHART_FONT }}
+                          tick={<GanttYAxisTick fontSize={isMobile ? 8 : 9.5} maxChars={isMobile ? 18 : 24} />}
                           tickLine={false} />
                         <Tooltip content={<GanttTip />} />
                         <Bar dataKey="भौतिक" stackId="prog" name="सम्पन्न" barSize={CK.ganttBar}>
