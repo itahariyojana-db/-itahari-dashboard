@@ -766,6 +766,18 @@ export default function Dashboard() {
         /* ── Touch-friendly buttons ── */
         button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 
+        /* ── Inputs & selects: consistent compact height, no iOS zoom ── */
+        input,select{
+          -webkit-appearance:none;appearance:none;
+          font-size:14px;           /* ≥14px prevents iOS auto-zoom */
+          height:38px;line-height:1;
+          padding:0 10px;
+          border-radius:8px;
+          outline:none
+        }
+        input::placeholder{font-size:13px;color:#8A9BB0}
+        select{padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235A6A7E'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:10px}
+
         /* ════════════════════════════════════
            TABLET  769px → 1024px
         ════════════════════════════════════ */
@@ -878,44 +890,49 @@ export default function Dashboard() {
 
       {/* ══════════════ ALERTS PANEL ══════════════ */}
       {alertOpen && alerts.length > 0 && (
-        <div className="alert-panel" style={{ background: "#FFF8E1", borderBottom: `2px solid ${T.orange}`, maxHeight: 320, overflowY: "auto" }}>
-          <div style={{ maxWidth: 1440, margin: "0 auto", padding: "10px 20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 700, fontSize: 13, color: T.orange }}>🔔 ग्यारेन्टी म्याद सचेतना</span>
+        <div className="alert-panel" style={{ background: "#FFF8E1", borderBottom: `2px solid ${T.orange}`, maxHeight: 320, overflowY: "auto", overflowX: "hidden" }}>
+          <div style={{ maxWidth: 1440, margin: "0 auto", padding: "8px clamp(10px,3vw,20px)" }}>
+            {/* Header row */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: 12, color: T.orange, flexShrink: 0 }}>🔔 ग्यारेन्टी म्याद सचेतना</span>
                 {gExpiredCount > 0 && (
-                  <span style={{ background: T.expired, color: "#fff", borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>
-                    🔴 म्याद सकिएको: {toNP(gExpiredCount)}
+                  <span style={{ background: T.expired, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
+                    🔴 सकिएको: {toNP(gExpiredCount)}
                   </span>
                 )}
                 {gNearCount > 0 && (
-                  <span style={{ background: T.near, color: "#fff", borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>
-                    🟠 म्याद नजिक: {toNP(gNearCount)}
+                  <span style={{ background: T.near, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
+                    🟠 नजिक: {toNP(gNearCount)}
                   </span>
                 )}
               </div>
-              <button onClick={() => setAlertOpen(false)} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: T.muted }}>✕</button>
+              <button onClick={() => setAlertOpen(false)}
+                style={{ background: "rgba(0,0,0,.08)", border: "none", borderRadius: 6, width: 28, height: 28, fontSize: 14, cursor: "pointer", color: T.muted, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            <div className="alert-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 8 }}>
+            {/* Alert cards — always 1 col on mobile, auto-fill on desktop */}
+            <div className="alert-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(280px,100%),1fr))", gap: 7 }}>
               {alerts.map((a, i) => {
                 const gs = GSTATUS_STYLE[a.st];
                 const exp = parseBS(a.g.expiry);
                 const days = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
                 return (
                   <div key={i} onClick={() => { setSel(a.project); setAlertOpen(false); }}
-                    className="hov"
-                    style={{ background: gs.bg, border: `1.5px solid ${gs.color}`, borderLeft: `4px solid ${gs.color}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}>
-                    <div style={{ fontWeight: 700, fontSize: 11.5, color: T.text, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.project.projectName}</div>
+                    style={{ background: gs.bg, border: `1.5px solid ${gs.color}`, borderLeft: `4px solid ${gs.color}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", overflow: "hidden" }}>
+                    {/* Project name — wraps on mobile */}
+                    <div style={{ fontWeight: 700, fontSize: 11, color: T.text, marginBottom: 4, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {a.project.projectName}
+                    </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
-                      <span style={{ fontSize: 11, color: gs.color, fontWeight: 600 }}>{gs.icon} {a.label}</span>
+                      <span style={{ fontSize: 10.5, color: gs.color, fontWeight: 600 }}>{gs.icon} {a.label}</span>
                       {days !== null && (
-                        <span style={{ fontSize: 10.5, fontWeight: 700, color: gs.color, background: "#fff", padding: "1px 7px", borderRadius: 4, border: `1px solid ${gs.color}` }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: gs.color, background: "#fff", padding: "1px 6px", borderRadius: 4, border: `1px solid ${gs.color}`, flexShrink: 0 }}>
                           {days < 0 ? `${toNP(Math.abs(days))} दिन अघि` : `${toNP(days)} दिन बाँकी`}
                         </span>
                       )}
                     </div>
                     {a.g.expiry && a.g.expiry !== "—" && (
-                      <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>म्याद: {a.g.expiry}</div>
+                      <div style={{ fontSize: 9.5, color: T.muted, marginTop: 3 }}>म्याद: {a.g.expiry}</div>
                     )}
                   </div>
                 );
@@ -1063,20 +1080,20 @@ export default function Dashboard() {
         {tab === "projects" && (
           <div>
             {/* Filter bar */}
-            <div style={{ ...card, padding: "10px 14px", marginBottom: 14 }}>
+            <div style={{ ...card, padding: "10px 12px", marginBottom: 12 }}>
               {/* Type filter buttons */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 600, marginRight: 4 }}>योजना प्रकार:</span>
+              <div style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, flexShrink: 0 }}>प्रकार:</span>
                 {TYPE_FILTERS.map(f => (
                   <button key={f.key} onClick={() => setTypeFilter(f.key)}
-                    style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${typeFilter === f.key ? T.red : T.border}`, background: typeFilter === f.key ? T.red : T.white, color: typeFilter === f.key ? "#fff" : T.text, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}>
+                    style={{ padding: "4px 11px", height: 30, borderRadius: 20, border: `1.5px solid ${typeFilter === f.key ? T.red : T.border}`, background: typeFilter === f.key ? T.red : T.white, color: typeFilter === f.key ? "#fff" : T.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}>
                     {f.key}
                   </button>
                 ))}
               </div>
               {/* Guarantee expiry filter */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 600, marginRight: 4 }}>ग्यारेन्टी अवस्था:</span>
+              <div style={{ display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, flexShrink: 0 }}>ग्यारेन्टी:</span>
                 {[
                   { key: "सबै",           color: T.muted   },
                   { key: "म्याद सकियो",   color: T.expired },
@@ -1085,25 +1102,25 @@ export default function Dashboard() {
                   { key: "ग्यारेन्टी छैन", color: T.muted  },
                 ].map(f => (
                   <button key={f.key} onClick={() => setFGuarantee(f.key)}
-                    style={{ padding: "4px 12px", borderRadius: 20, border: `1.5px solid ${fGuarantee === f.key ? f.color : T.border}`, background: fGuarantee === f.key ? f.color : T.white, color: fGuarantee === f.key ? "#fff" : T.text, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}>
+                    style={{ padding: "3px 10px", height: 28, borderRadius: 20, border: `1.5px solid ${fGuarantee === f.key ? f.color : T.border}`, background: fGuarantee === f.key ? f.color : T.white, color: fGuarantee === f.key ? "#fff" : T.text, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}>
                     {f.key}
                   </button>
                 ))}
               </div>
               {/* Search + dropdowns */}
-              <div className="filter-row" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="🔍 योजना, ठेक्का नं., ठेकेदार…"
-                  style={{ flex: "1 1 200px", minWidth: 0, padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.sky, color: T.text, fontSize: 12.5, outline: "none", width: "100%" }} />
+                  placeholder="🔍 खोज्नुहोस्…"
+                  style={{ flex: "1 1 180px", minWidth: 0, height: 36, padding: "0 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.sky, color: T.text, fontSize: 14 }} />
                 <select value={fStatus} onChange={e => setFStatus(e.target.value)}
-                  style={{ flex: "1 1 130px", minWidth: 0, padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, cursor: "pointer", background: T.white }}>
+                  style={{ flex: "1 1 120px", minWidth: 0, height: 36, padding: "0 28px 0 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, cursor: "pointer", background: T.white }}>
                   {statuses.map(o => <option key={o}>{o}</option>)}
                 </select>
                 <select value={fSector} onChange={e => setFSector(e.target.value)}
-                  style={{ flex: "1 1 130px", minWidth: 0, padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 12, cursor: "pointer", background: T.white }}>
+                  style={{ flex: "1 1 120px", minWidth: 0, height: 36, padding: "0 28px 0 10px", borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 13, cursor: "pointer", background: T.white }}>
                   {sectors.map(o => <option key={o}>{o}</option>)}
                 </select>
-                <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 700, background: T.sky, padding: "5px 10px", borderRadius: 7, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: T.muted, fontWeight: 700, background: T.sky, padding: "5px 10px", borderRadius: 7, flexShrink: 0, whiteSpace: "nowrap" }}>
                   {toNP(filtered.length)} योजना
                 </span>
               </div>
