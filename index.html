@@ -1,10 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="ne">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dashboard-react</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>इटहरी उपमहानगरपालिका — योजना अनुगमन</title>
+
+    <!-- Preconnect so DNS + TLS resolve before the @import fires -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!--
+      Preload Noto Sans Devanagari BEFORE React/SVG renders.
+      subset=devanagari ensures the full GSUB conjunct table is included.
+      Without this the browser may fall back to system-ui which lacks
+      half-form / conjunct lookups, causing पशुधारा → पशू ध रा.
+    -->
+    <link rel="preload" as="style"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Mukta:wght@400;600;700;800&subset=devanagari,latin&display=block" />
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Mukta:wght@400;600;700;800&subset=devanagari,latin&display=block" />
+
+    <style>
+      /* Ensure Devanagari font is active on body ASAP — before JS bundle */
+      html, body {
+        font-family: 'Noto Sans Devanagari', 'Mukta', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      /* SVG text inherits correctly in Chrome but NOT always in iOS Safari.
+         This rule forces it at the browser-paint level. */
+      svg text, svg tspan {
+        font-family: 'Noto Sans Devanagari', 'Mukta', sans-serif !important;
+        text-rendering: geometricPrecision;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

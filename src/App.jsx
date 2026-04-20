@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useFontReady } from "./hooks/useFontReady";
 import {
   PieChart, Pie, Cell, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -550,6 +551,24 @@ const GanttYAxisTick = ({ x, y, payload, fontSize = 9.5, maxChars = 22, fill = "
     </g>
   );
 };
+
+// Delays chart mount until Devanagari font is confirmed loaded.
+// iOS WebKit locks SVG text to the fallback font at first paint and
+// never re-shapes — mounting after fonts.ready prevents that entirely.
+function FontReadyChart({ height, children }) {
+  const fontReady = useFontReady();
+  if (!fontReady) {
+    return (
+      <div style={{
+        height,
+        background: '#f1f5f9',
+        borderRadius: 8,
+        opacity: 0.55,
+      }} />
+    );
+  }
+  return children;
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  MAIN DASHBOARD
@@ -1126,6 +1145,7 @@ export default function Dashboard() {
               </div>
               {secBudget.length > 0 ? (
                 <div className="chart-scroll"><div className="chart-min">
+                <FontReadyChart height={Math.max(260, secBudget.length * 44)}>
                 <ResponsiveContainer width="100%" height={Math.max(260, secBudget.length * 44)}>
                   <BarChart data={secBudget} layout="vertical" margin={{ left: 0, right: CK.rightMg, top: 4, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false} />
@@ -1140,6 +1160,7 @@ export default function Dashboard() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                </FontReadyChart>
                 </div></div>
               ) : <EmptyState />}
             </div>
@@ -1149,6 +1170,7 @@ export default function Dashboard() {
               <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>कार्य अवस्था वितरण</h3>
               {statusData.length > 0 ? (
                 <>
+                  <FontReadyChart height={220}>
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
                       <Pie data={statusData} cx="50%" cy="50%" outerRadius={88} innerRadius={44} paddingAngle={2} dataKey="value" stroke="none">
@@ -1157,6 +1179,7 @@ export default function Dashboard() {
                       <Tooltip content={<ChartTip />} />
                     </PieChart>
                   </ResponsiveContainer>
+                  </FontReadyChart>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
                     {statusData.map((s, i) => (
                       <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9.5, color: T.muted, background: T.sky, padding: "2px 7px", borderRadius: 5 }}>
@@ -1174,6 +1197,7 @@ export default function Dashboard() {
               <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>क्षेत्रगत प्रगति तुलना</h3>
               {secProg.length > 0 ? (
                 <div className="chart-scroll"><div className="chart-min" style={{ minWidth: isMobile ? 0 : 320 }}>
+                <FontReadyChart height={isMobile ? secProg.length * 38 + 40 : 260}>
                 <ResponsiveContainer width="100%" height={isMobile ? secProg.length * 38 + 40 : 260}>
                   {isMobile ? (
                     <BarChart data={secProg} layout="vertical" margin={{ left: 0, right: 44, top: 4, bottom: 4 }}>
@@ -1201,6 +1225,7 @@ export default function Dashboard() {
                     </BarChart>
                   )}
                 </ResponsiveContainer>
+                </FontReadyChart>
                 </div></div>
               ) : <EmptyState />}
             </div>
@@ -1408,6 +1433,7 @@ export default function Dashboard() {
               {ganttData.length === 0 ? <EmptyState /> : (
                 <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
                   <div style={{ minWidth: isMobile ? 380 : 560 }}>
+                    <FontReadyChart height={Math.max(300, ganttData.length * (isMobile ? 36 : 42))}>
                     <ResponsiveContainer width="100%" height={Math.max(300, ganttData.length * (isMobile ? 36 : 42))}>
                       <BarChart data={ganttData} layout="vertical" margin={{ left: 0, right: isMobile ? 42 : 68, top: 4, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={T.border} />
@@ -1434,6 +1460,7 @@ export default function Dashboard() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                    </FontReadyChart>
                   </div>
                 </div>
               )}
@@ -1702,6 +1729,7 @@ export default function Dashboard() {
                   .sort((a, b) => b.बजेट - a.बजेट);
                 return d.length === 0 ? <EmptyState /> : (
                   <div className="chart-scroll"><div className="chart-min" style={{ minWidth: isMobile ? 0 : 340 }}>
+                  <FontReadyChart height={isMobile ? d.length * 44 + 40 : 280}>
                   <ResponsiveContainer width="100%" height={isMobile ? d.length * 44 + 40 : 280}>
                     {isMobile ? (
                       <BarChart data={d} layout="vertical" margin={{ left: 0, right: 44, top: 4, bottom: 4 }}>
@@ -1731,6 +1759,7 @@ export default function Dashboard() {
                       </BarChart>
                     )}
                   </ResponsiveContainer>
+                  </FontReadyChart>
                   </div></div>
                 );
               })()}
@@ -1759,6 +1788,7 @@ export default function Dashboard() {
               <h3 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: T.blue, borderBottom: `2px solid ${T.red}`, paddingBottom: 5, display: "inline-block" }}>भुक्तानी दक्षता</h3>
               {S.budget > 0 ? (
                 <>
+                  <FontReadyChart height={180}>
                   <ResponsiveContainer width="100%" height={180}>
                     <PieChart>
                       <Pie data={[{ name: "भुक्तानी", value: S.paid }, { name: "बाँकी", value: Math.max(0, S.budget - S.paid) }]}
@@ -1769,6 +1799,7 @@ export default function Dashboard() {
                       <Tooltip content={<ChartTip />} />
                     </PieChart>
                   </ResponsiveContainer>
+                  </FontReadyChart>
                   <div style={{ textAlign: "center" }}>
                     <span style={{ fontSize: 26, fontWeight: 800, color: T.green }}>{toNP(((S.paid / S.budget) * 100).toFixed(1))}%</span>
                     <p style={{ fontSize: 11, color: T.muted, margin: "3px 0 0" }}>कुल भुक्तानी दर</p>
