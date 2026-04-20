@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 
 // Resolves true once "Noto Sans Devanagari" is loaded and available.

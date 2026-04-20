@@ -1,70 +1,42 @@
 /**
- * Vercel Edge Middleware — HTTP Basic Auth
+ * Next.js Edge Middleware — cookie-based route protection.
  *
- * Runs before every request on Vercel's edge network.
- * Returns 401 + WWW-Authenticate to trigger the browser's native login popup.
- * Credentials are read from environment variables — never hardcoded.
+ * Runs before every matched request on Vercel's edge network.
+ * Replaces the previous HTTP Basic Auth middleware.
  *
- * Set in Vercel: Project → Settings → Environment Variables
- *   BASIC_AUTH_USER      your username
- *   BASIC_AUTH_PASSWORD  your password
- *
- * ⚠️  Basic Auth is only secure over HTTPS.
- *     Vercel provides HTTPS on all deployments by default.
+ * Unauthenticated users are redirected to /login.
+ * Authenticated users visiting /login are redirected to /dashboard.
  */
 
-// Constant-time string comparison — prevents timing attacks that let an
-// attacker guess credentials one character at a time by measuring response
-// latency. Always iterates the full length of both strings.
-function timingSafeEqual(a, b) {
-  let diff = a.length ^ b.length; // non-zero if lengths differ → false
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return diff === 0;
-}
+import { NextResponse } from 'next/server';
+import { verifyToken, COOKIE_NAME } from './lib/session';
 
-export default function middleware(request) {
-  const expectedUser = process.env.BASIC_AUTH_USER;
-  const expectedPass = process.env.BASIC_AUTH_PASSWORD;
+export async function middleware(request) {
+  const { pathname } = request.nextUrl;
 
-  // Fail secure: block everything if env vars are not configured.
-  if (!expectedUser || !expectedPass) {
-    return new Response('Auth env vars not configured on server.', { status: 500 });
+  // Auth API endpoints are always public — never block them
+  if (pathname.startsWith('/api/auth')) {
+    return NextResponse.next();
   }
 
-  const authHeader = request.headers.get('authorization') ?? '';
+  const token   = request.cookies.get(COOKIE_NAME)?.value;
+  const session = await verifyToken(token);
 
-  if (authHeader.startsWith('Basic ')) {
-    try {
-      // atob() decodes base64 — available in Edge Runtime (no Node Buffer needed)
-      const decoded = atob(authHeader.slice(6));
-      const colon   = decoded.indexOf(':');
-      if (colon !== -1) {
-        const user = decoded.slice(0, colon);
-        const pass = decoded.slice(colon + 1);
-        if (timingSafeEqual(user, expectedUser) && timingSafeEqual(pass, expectedPass)) {
-          return; // ✓ valid — pass request through to the app
-        }
-      }
-    } catch {
-      // Malformed base64 — fall through to 401
-    }
+  if (pathname === '/login') {
+    // Already logged in → skip login page, go straight to dashboard
+    if (session) return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.next();
   }
 
-  // Missing or invalid credentials → trigger browser login popup
-  return new Response('Authentication required', {
-    status: 401,
-    headers: {
-      'WWW-Authenticate': 'Basic realm="Itahari Dashboard", charset="UTF-8"',
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-  });
+  // Every other route (including /) requires a valid session
+  if (!session) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-  // Match ALL routes — browser caches credentials per-origin so the
-  // dialog only appears once per session, even for asset requests.
-  matcher: ['/(.*)', '/'],
+  // Run on all routes except Next.js internals and static public files
+  matcher: ['/((?!_next/static|_next/image|favicon\\.svg|icons\\.svg).*)'],
 };

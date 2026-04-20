@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useFontReady } from "./hooks/useFontReady";
 import {
@@ -616,6 +618,12 @@ export default function Dashboard() {
     rightMg:  isMobile ? 52   : 80,                       // right margin for labels
   };
 
+  // ── AUTH ──────────────────────────────────────────────────
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.replace('/login');
+  }
+
   // ── FETCH ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1029,6 +1037,11 @@ export default function Dashboard() {
               <button onClick={fetchData} disabled={loading}
                 style={{ padding: "5px 14px", borderRadius: 8, border: "2px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: "inherit" }}>
                 {loading ? "लोड…" : "🔄 रिफ्रेश"}
+              </button>
+              <button onClick={handleLogout}
+                title="लग आउट"
+                style={{ padding: "5px 12px", borderRadius: 8, border: "2px solid rgba(255,255,255,.35)", background: "rgba(0,0,0,.18)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                🔓 बाहिर निस्कनुस्
               </button>
             </div>
           </div>

@@ -1,0 +1,23 @@
+/* Global reset — Next.js version of the former src/index.css */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Noto Sans Devanagari', 'Mukta', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background: #F2F5FA;
+}
+
+/* iOS WebKit: force correct Devanagari font inside SVG text (chart labels).
+   WebKit does not inherit CSS custom properties into SVG sub-trees reliably;
+   this !important rule combined with inline fontFamily on Recharts ticks
+   is the belt-and-suspenders fix that prevents per-character fallback shaping. */
+svg text,
+svg tspan {
+  font-family: 'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Mangal', sans-serif !important;
+  text-rendering: geometricPrecision;
+}
