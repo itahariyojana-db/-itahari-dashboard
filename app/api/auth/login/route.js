@@ -52,7 +52,7 @@ export async function POST(request) {
     httpOnly: true,                                      // JS cannot read this cookie
     secure:   process.env.NODE_ENV === 'production',    // HTTPS only in prod
     sameSite: 'lax',                                    // CSRF protection
-    maxAge:   MAX_AGE,                                  // 24 hours
+    maxAge:   MAX_AGE,                                  // 1 hour
     path:     '/',
   });
   return response;
