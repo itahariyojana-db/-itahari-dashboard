@@ -1421,14 +1421,15 @@ export default function Dashboard() {
                       <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[0,8,8,0]} barSize={10} />
                     </BarChart>
                   ) : (
-                    <BarChart data={secProg} margin={{ left: 0, right: 8, top: 4, bottom: 55 }}>
+                    <BarChart data={secProg} margin={{ left: 0, right: 8, top: 28, bottom: 60 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
                       <XAxis dataKey="name" angle={-35} textAnchor="end" interval={0}
                         tick={{ fill: T.text, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
                       <YAxis domain={[0, 100]} tickFormatter={v => toNP(v) + "%"} width={38}
                         tick={{ fill: T.muted, fontSize: CK.tickSm, fontFamily: CHART_FONT }} />
                       <Tooltip content={<ChartTip />} />
-                      <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4, fontFamily: CHART_FONT }} />
+                      <Legend verticalAlign="top" align="center"
+                        wrapperStyle={{ fontSize: 10, paddingBottom: 6, fontFamily: CHART_FONT }} />
                       <Bar dataKey="भौतिक" name="भौतिक %" fill={T.red}   radius={[4,4,0,0]} barSize={12} />
                       <Bar dataKey="आर्थिक" name="आर्थिक %" fill={T.blue} radius={[4,4,0,0]} barSize={12} />
                     </BarChart>
