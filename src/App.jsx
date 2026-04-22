@@ -181,31 +181,69 @@ const fmtInt  = (n) => toNP(Math.round(Number(n) || 0));
 // ═══════════════════════════════════════════════════════════════
 //  DATE HELPERS  (handles Bikram Sambat yyyy-mm-dd format)
 // ═══════════════════════════════════════════════════════════════
+
+// Approximate AD calendar day on which each BS month begins.
+// Index 1–12 = Baisakh–Chaitra.  Values match the typical mid-month start.
+const _BS_MONTH_START_AD_DAY = [0, 14, 15, 15, 16, 17, 17, 17, 16, 16, 15, 13, 14];
+
 /**
- * Roughly converts a BS date string to a JS Date.
- * Accuracy: ±1 month — sufficient for expiry alerts.
- * BS month 1 (Baisakh) ≈ mid-April → shift +3 months, −57 years.
+ * Converts a BS (or AD) date string to a JS Date.
+ * Supports separators '-' and '/'.
+ *
+ * BS→AD algorithm (±1–3 day accuracy):
+ *   AD year  = BS year − 57        (for months 1–9)
+ *              BS year − 56        (for months 10–12, after m+3 overflow)
+ *   AD month = BS month + 3        (mod 12, with year carry)
+ *   AD day   ≈ BS_MONTH_START_AD_DAY[m] + (BS day − 1)
+ *              (each BS month starts ~mid-AD month, hence the per-month offset)
+ *
+ * The previous formula used BS day directly as AD day, causing a ~14-day
+ * systematic error that misclassified near-expiry guarantees.
  */
 const parseBS = (s) => {
   if (!s || s === "-" || s === "") return null;
   const parts = String(s).split(/[-\/]/);
   if (parts.length < 2) return null;
-  let [y, m, d] = parts.map(Number);
+  const [y, m, d] = parts.map(Number);
   if (!y || !m) return null;
-  if (y >= 2040 && y <= 2090) {          // looks like BS year
+
+  if (y >= 2040 && y <= 2120) {          // Bikram Sambat year
     let ay = y - 57;
     let am = m + 3;
     if (am > 12) { am -= 12; ay += 1; }
-    return new Date(ay, am - 1, d || 15);
+    // Start from the AD day when this BS month begins, then advance (d-1) days.
+    // Using Date arithmetic so overflow into the next AD month is handled correctly.
+    const startDay = _BS_MONTH_START_AD_DAY[m] || 14;
+    const base = new Date(ay, am - 1, startDay);
+    base.setDate(base.getDate() + ((d || 1) - 1));
+    return base;
   }
-  return new Date(y, m - 1, d || 1);    // already AD
+
+  // AD date (year outside BS range)
+  return new Date(y, m - 1, d || 1);
+};
+
+/**
+ * Returns integer days until dateStr expires, measured from today's midnight.
+ * Negative = already expired.  null = unparseable date.
+ *
+ * Using today's LOCAL midnight (not Date.now()) avoids the "expires today but
+ * shows −1" bug that occurred when current clock time is after midnight and
+ * the expiry date was also midnight.
+ */
+const daysUntil = (dateStr) => {
+  const exp = parseBS(dateStr);
+  if (!exp || isNaN(exp.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  exp.setHours(0, 0, 0, 0);
+  return Math.round((exp.getTime() - today.getTime()) / 86400000);
 };
 
 const expiryStatus = (dateStr) => {
-  const exp = parseBS(dateStr);
-  if (!exp || isNaN(exp)) return null;
-  const diff = Math.floor((exp - Date.now()) / 86400000);
-  if (diff < 0)               return "expired";
+  const diff = daysUntil(dateStr);
+  if (diff === null)            return null;
+  if (diff < 0)                 return "expired";
   if (diff <= NEAR_EXPIRY_DAYS) return "near";
   return "valid";
 };
@@ -296,19 +334,15 @@ function rowToProject(row, cm, idx) {
     const refs     = (rawRef || embRef).split("/").map(s => s.trim()).filter(Boolean);
     const expiries = rawExpiry.split(",").map(s => s.trim()).filter(Boolean);
 
-    // Compute remaining days for each expiry date
-    const remainingDays = expiries.map(exp => {
-      const d = parseBS(exp);     // parseBS handles both AD (year<2040) and BS (year≥2040)
-      if (!d || isNaN(d.getTime())) return null;
-      return Math.floor((d.getTime() - Date.now()) / 86400000);
-    });
+    // Compute remaining days for each expiry date (using today midnight — not Date.now())
+    const remainingDays = expiries.map(exp => daysUntil(exp));
 
     // Nearest (soonest) expiry — used by existing sort/filter/status logic
     const nearestExpiry = expiries.reduce((best, e) => {
-      const d  = parseBS(e);
-      const bd = best ? parseBS(best) : null;
-      if (!d || isNaN(d.getTime())) return best;
-      if (!bd || d < bd) return e;
+      const dv = daysUntil(e);
+      const bv = best != null ? daysUntil(best) : null;
+      if (dv === null) return best;
+      if (bv === null || dv < bv) return e;
       return best;
     }, null) ?? (expiries[0] || "—");
 
@@ -334,9 +368,9 @@ function rowToProject(row, cm, idx) {
       .map(g => guaAPG(g.BANK, g.REF, g.AMT, g.ISSUE, g.EXPIRY))
       .filter(g => g.bank !== "—" || g.ref !== "—" || g.amt > 0 || g.expiry !== "—")
       .sort((a, b) => {
-        const da = parseBS(a.expiry), db = parseBS(b.expiry);
-        if (!da || isNaN(da)) return 1;
-        if (!db || isNaN(db)) return -1;
+        const da = daysUntil(a.expiry), db = daysUntil(b.expiry);
+        if (da === null) return 1;
+        if (db === null) return -1;
         return da - db;
       });
   })();
@@ -519,8 +553,7 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
   if (!hasData) return null;
 
   // Single expiry path (INS / PBG / APG with one date)
-  const exp = parseBS(g.expiry);
-  const daysLeft = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
+  const daysLeft = daysUntil(g.expiry);
 
   // Multi-expiry path — APG can have expiries[] with remainingDays[]
   const hasMulti = g.expiries?.length > 1;
@@ -1247,8 +1280,7 @@ export default function Dashboard() {
             <div className="alert-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(280px,100%),1fr))", gap: 7 }}>
               {alerts.map((a, i) => {
                 const gs = GSTATUS_STYLE[a.st];
-                const exp = parseBS(a.g.expiry);
-                const days = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
+                const days = daysUntil(a.g.expiry);
                 return (
                   <div key={i} onClick={() => { setSel(a.project); setAlertOpen(false); }}
                     style={{ background: gs.bg, border: `1.5px solid ${gs.color}`, borderLeft: `4px solid ${gs.color}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", overflow: "hidden" }}>
@@ -1789,10 +1821,7 @@ export default function Dashboard() {
                       ) : visibleG.map((item, i) => {
                         const { project: p, key: gKey, label, g, st, apgIdx } = item;
                         const gs = st ? GSTATUS_STYLE[st] : null;
-                        const exp = parseBS(g.expiry);
-                        const daysLeft = exp && !isNaN(exp)
-                          ? Math.floor((exp - Date.now()) / 86400000)
-                          : null;
+                        const daysLeft = daysUntil(g.expiry);
                         // For APG with multiple expiries, use the per-entry remainingDays array
                         const apgDays = gKey === "apg" && g.remainingDays?.length > 0
                           ? g.remainingDays
@@ -1870,8 +1899,7 @@ export default function Dashboard() {
                 ) : visibleG.map((item) => {
                   const { project: p, key: gKey, g, st, apgIdx } = item;
                   const gs = st ? GSTATUS_STYLE[st] : null;
-                  const exp = parseBS(g.expiry);
-                  const daysLeft = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
+                  const daysLeft = daysUntil(g.expiry);
                   const apgDays = gKey === "apg" && g.remainingDays?.length > 0
                     ? g.remainingDays
                     : (daysLeft !== null ? [daysLeft] : []);
