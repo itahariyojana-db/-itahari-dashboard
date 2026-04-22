@@ -270,11 +270,68 @@ function rowToProject(row, cm, idx) {
     };
   };
 
-  // Build apgs array (multiple APGs per project, sorted nearest expiry first)
+  // ── APG multi-value reader ────────────────────────────────────
+  // A single APG column can hold multiple values encoded as:
+  //   Ref No  : "REF1/REF2"              → split by "/"
+  //   Expiry  : "2082-01-29,2082-03-17"  → split by ","
+  //             (or "2026/05/12,2026/06/30" in AD YYYY/MM/DD format)
+  // Returns ONE enriched object per column group with:
+  //   refs[]        – individual ref numbers
+  //   expiries[]    – individual expiry dates (normalised)
+  //   remainingDays[] – days left per expiry (null if unparseable)
+  //   expiry        – nearest expiry (used by existing sort/status logic)
+  const guaAPG = (bankIdx, refIdx, amtIdx, issueIdx, expiryIdx) => {
+    const rawBank   = str(row[bankIdx]);
+    const rawRef    = refIdx != null ? str(row[refIdx]) : "";
+    const rawExpiry = str(row[expiryIdx]) || "";
+    const rawIssue  = str(row[issueIdx])  || "—";
+    const rawAmt    = num(row[amtIdx]);
+
+    // Extract bank / embedded ref  ("Bank Name(REF)" pattern)
+    const bMatch = rawBank.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+    const bank   = bMatch ? bMatch[1].trim() : (rawBank || "—");
+    const embRef = bMatch ? bMatch[2].trim() : "";
+
+    // Split multi-value fields; fall back to embedded ref for single-value
+    const refs     = (rawRef || embRef).split("/").map(s => s.trim()).filter(Boolean);
+    const expiries = rawExpiry.split(",").map(s => s.trim()).filter(Boolean);
+
+    // Compute remaining days for each expiry date
+    const remainingDays = expiries.map(exp => {
+      const d = parseBS(exp);     // parseBS handles both AD (year<2040) and BS (year≥2040)
+      if (!d || isNaN(d.getTime())) return null;
+      return Math.floor((d.getTime() - Date.now()) / 86400000);
+    });
+
+    // Nearest (soonest) expiry — used by existing sort/filter/status logic
+    const nearestExpiry = expiries.reduce((best, e) => {
+      const d  = parseBS(e);
+      const bd = best ? parseBS(best) : null;
+      if (!d || isNaN(d.getTime())) return best;
+      if (!bd || d < bd) return e;
+      return best;
+    }, null) ?? (expiries[0] || "—");
+
+    console.debug("[APG multi-value]", { bank, refs, expiries, remainingDays });
+
+    return {
+      bank,
+      ref:          refs.length > 0 ? refs.join(" / ") : (embRef || "—"),
+      refs,
+      amt:          rawAmt,
+      issue:        rawIssue,
+      expiry:       nearestExpiry,   // backward-compat: nearest expiry
+      expiries,
+      remainingDays,
+    };
+  };
+
+  // Build apgs array — one entry per APG column group (each group may have
+  // multiple expiries encoded inside its expiries[] field).
   const _apgsArr = (() => {
     const groups = cm.APG_GROUPS || [{ BANK: cm.APG_BANK, REF: cm.APG_REF, AMT: cm.APG_AMT, ISSUE: cm.APG_ISSUE, EXPIRY: cm.APG_EXPIRY }];
     return groups
-      .map(g => gua(g.BANK, g.REF, g.AMT, g.ISSUE, g.EXPIRY))
+      .map(g => guaAPG(g.BANK, g.REF, g.AMT, g.ISSUE, g.EXPIRY))
       .filter(g => g.bank !== "—" || g.ref !== "—" || g.amt > 0 || g.expiry !== "—")
       .sort((a, b) => {
         const da = parseBS(a.expiry), db = parseBS(b.expiry);
@@ -449,9 +506,9 @@ const GSTATUS_STYLE = {
 };
 
 const GuaranteeBadge = ({ title, g, showRef = false }) => {
+  if (!g) return null;
   const st = expiryStatus(g.expiry);
   const gs = st ? GSTATUS_STYLE[st] : null;
-  // Show ref if explicitly requested OR if the insurance badge itself has a ref number
   const hasRef = (showRef || (g.ref && g.ref !== "—")) && g.ref && g.ref !== "—";
   const hasData =
     (g.bank   && g.bank   !== "—") ||
@@ -461,25 +518,33 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
     g.amt > 0;
   if (!hasData) return null;
 
+  // Single expiry path (INS / PBG / APG with one date)
   const exp = parseBS(g.expiry);
   const daysLeft = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
-  const daysLabel = daysLeft === null ? null
+
+  // Multi-expiry path — APG can have expiries[] with remainingDays[]
+  const hasMulti = g.expiries?.length > 1;
+
+  const daysLabelColor = (d) => d === null ? T.muted
+    : d < 0   ? T.expired
+    : d <= 30  ? T.expired
+    : d <= 90  ? T.near
+    : T.valid;
+
+  const singleDaysLabel = daysLeft === null ? null
     : daysLeft < 0  ? `${toNP(Math.abs(daysLeft))} दिन अघि म्याद सकियो`
     : daysLeft === 0 ? "आज म्याद सकिँदैछ"
     : `${toNP(daysLeft)} दिन बाँकी`;
-  const daysLabelColor = daysLeft === null ? T.muted
-    : daysLeft < 0   ? T.expired
-    : daysLeft <= 30  ? T.expired
-    : daysLeft <= 90  ? T.near
-    : T.valid;
 
   const fields = [
     ["बैंक/वित्तीय संस्था", g.bank || "—"],
     ...(hasRef ? [["जमानत पत्र नं.", g.ref]] : []),
     ["जमानत रकम", g.amt > 0 ? fmt(g.amt) : "—"],
     ["जारी मिति", g.issue || "—"],
-    ["म्याद सकिने मिति", g.expiry || "—"],
-    ...(daysLabel ? [["समय स्थिति", daysLabel]] : []),
+    // For multi-expiry APG: show all expiry dates on one line
+    ["म्याद सकिने मिति", hasMulti ? g.expiries.join(", ") : (g.expiry || "—")],
+    // Single remaining days (non-multi)
+    ...(!hasMulti && singleDaysLabel ? [["समय स्थिति", singleDaysLabel]] : []),
   ];
 
   return (
@@ -494,12 +559,30 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 16px", fontSize: 11 }}>
         {fields.map(([l, v]) => (
-          <div key={l} style={{ gridColumn: l === "बैंक/वित्तीय संस्था" ? "1/-1" : undefined }}>
+          <div key={l} style={{ gridColumn: l === "बैंक/वित्तीय संस्था" || l === "म्याद सकिने मिति" ? "1/-1" : undefined }}>
             <span style={{ color: T.muted }}>{l}: </span>
-            <span style={{ fontWeight: 600, color: l === "म्याद सकिने मिति" && gs ? gs.color : l === "समय स्थिति" ? daysLabelColor : T.text }}>{v}</span>
+            <span style={{ fontWeight: 600, color: l === "म्याद सकिने मिति" && gs ? gs.color : l === "समय स्थिति" ? daysLabelColor(daysLeft) : T.text }}>{v}</span>
           </div>
         ))}
       </div>
+      {/* Multi-expiry remaining days — shown as "दिन बाँकी: 120, 165 दिन" */}
+      {hasMulti && g.remainingDays?.length > 0 && (
+        <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${gs ? gs.color + "44" : T.border}` }}>
+          <span style={{ color: T.muted, fontSize: 11 }}>दिन बाँकी: </span>
+          <span style={{ fontWeight: 700, fontSize: 11 }}>
+            {g.remainingDays.map((d, i) => {
+              const c = daysLabelColor(d);
+              const label = d === null ? "—" : d < 0 ? `${toNP(Math.abs(d))} अघि` : toNP(d);
+              return (
+                <span key={i} style={{ color: c }}>
+                  {i > 0 ? ", " : ""}{label}
+                </span>
+              );
+            })}
+            {" "}दिन
+          </span>
+        </div>
+      )}
     </div>
   );
 };
@@ -1710,10 +1793,17 @@ export default function Dashboard() {
                         const daysLeft = exp && !isNaN(exp)
                           ? Math.floor((exp - Date.now()) / 86400000)
                           : null;
-                        const daysColor = daysLeft === null ? T.muted
-                          : daysLeft < 0   ? T.expired
-                          : daysLeft <= 30  ? T.expired
-                          : daysLeft <= 90  ? T.near
+                        // For APG with multiple expiries, use the per-entry remainingDays array
+                        const apgDays = gKey === "apg" && g.remainingDays?.length > 0
+                          ? g.remainingDays
+                          : (daysLeft !== null ? [daysLeft] : []);
+                        const worstDay = apgDays.length > 0
+                          ? Math.min(...apgDays.filter(d => d !== null))
+                          : daysLeft;
+                        const daysColor = worstDay === null ? T.muted
+                          : worstDay < 0  ? T.expired
+                          : worstDay <= 30 ? T.expired
+                          : worstDay <= 90 ? T.near
                           : T.valid;
                         const gTypeColor = gKey === "ins" ? T.blue : gKey === "pbg" ? T.green : T.orange;
                         const hasRef = gKey !== "ins" && g.ref && g.ref !== "—";
@@ -1749,12 +1839,19 @@ export default function Dashboard() {
                             {/* जारी मिति */}
                             <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontSize: 11 }}>{g.issue}</td>
                             {/* म्याद */}
-                            <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, fontSize: 11, color: gs ? gs.color : T.text }}>{g.expiry}</td>
+                            <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, fontSize: 11, color: gs ? gs.color : T.text }}>
+                              {gKey === "apg" && g.expiries?.length > 1
+                                ? g.expiries.join(", ")
+                                : g.expiry}
+                            </td>
                             {/* दिन बाँकी */}
                             <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, fontSize: 11, color: daysColor }}>
-                              {daysLeft === null ? "—"
-                                : daysLeft < 0 ? toNP(Math.abs(daysLeft)) + " दिन अघि"
-                                : toNP(daysLeft) + " दिन"}
+                              {apgDays.length === 0 ? "—"
+                                : apgDays.map((d, di) =>
+                                    d === null ? "—"
+                                    : d < 0    ? toNP(Math.abs(d)) + " दिन अघि"
+                                    : toNP(d)  + " दिन"
+                                  ).join(", ")}
                             </td>
                             {/* detail arrow */}
                             <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, textAlign: "center", color: T.muted, fontSize: 12 }}>›</td>
@@ -1775,10 +1872,14 @@ export default function Dashboard() {
                   const gs = st ? GSTATUS_STYLE[st] : null;
                   const exp = parseBS(g.expiry);
                   const daysLeft = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
-                  const daysColor = daysLeft === null ? T.muted
-                    : daysLeft < 0   ? T.expired
-                    : daysLeft <= 30  ? T.expired
-                    : daysLeft <= 90  ? T.near
+                  const apgDays = gKey === "apg" && g.remainingDays?.length > 0
+                    ? g.remainingDays
+                    : (daysLeft !== null ? [daysLeft] : []);
+                  const worstDay = apgDays.length > 0 ? Math.min(...apgDays.filter(d => d !== null)) : daysLeft;
+                  const daysColor = worstDay === null ? T.muted
+                    : worstDay < 0  ? T.expired
+                    : worstDay <= 30 ? T.expired
+                    : worstDay <= 90 ? T.near
                     : T.valid;
                   const gTypeColor = gKey === "ins" ? T.blue : gKey === "pbg" ? T.green : T.orange;
                   const hasRef = gKey !== "ins" && g.ref && g.ref !== "—";
@@ -1799,11 +1900,20 @@ export default function Dashboard() {
                         <div><span style={{ color: T.muted }}>रकम: </span><span style={{ fontWeight: 600 }}>{g.amt > 0 ? fmt(g.amt) : "—"}</span></div>
                         {hasRef && <div style={{ gridColumn: "1/-1" }}><span style={{ color: T.muted }}>जमानत नं.: </span><span style={{ fontWeight: 700, color: T.blue }}>{g.ref}</span></div>}
                         <div><span style={{ color: T.muted }}>जारी: </span><span>{g.issue || "—"}</span></div>
-                        <div><span style={{ color: T.muted }}>म्याद: </span><span style={{ fontWeight: 700, color: gs ? gs.color : T.text }}>{g.expiry || "—"}</span></div>
+                        <div style={{ gridColumn: gKey === "apg" && g.expiries?.length > 1 ? "1/-1" : undefined }}>
+                          <span style={{ color: T.muted }}>म्याद: </span>
+                          <span style={{ fontWeight: 700, color: gs ? gs.color : T.text }}>
+                            {gKey === "apg" && g.expiries?.length > 1 ? g.expiries.join(", ") : (g.expiry || "—")}
+                          </span>
+                        </div>
                       </div>
-                      {daysLeft !== null && (
+                      {apgDays.length > 0 && (
                         <div style={{ marginTop: 7, fontSize: 11, fontWeight: 700, color: daysColor }}>
-                          {daysLeft < 0 ? `${toNP(Math.abs(daysLeft))} दिन अघि म्याद सकियो` : `${toNP(daysLeft)} दिन बाँकी`}
+                          {gKey === "apg" && apgDays.length > 1
+                            ? `दिन बाँकी: ${apgDays.map(d => d === null ? "—" : d < 0 ? toNP(Math.abs(d)) + " अघि" : toNP(d)).join(", ")} दिन`
+                            : apgDays[0] < 0
+                              ? `${toNP(Math.abs(apgDays[0]))} दिन अघि म्याद सकियो`
+                              : `${toNP(apgDays[0])} दिन बाँकी`}
                         </div>
                       )}
                     </div>
