@@ -179,6 +179,57 @@ const fmtPct  = (n) => toNP(`${(Number(n) || 0).toFixed(1)}`) + "%";
 const fmtInt  = (n) => toNP(Math.round(Number(n) || 0));
 
 // ═══════════════════════════════════════════════════════════════
+//  NEPALI (BS) CALENDAR DATA  — for live clock AD → BS conversion
+// ═══════════════════════════════════════════════════════════════
+const NP_MONTH_NAMES = [
+  "", "बैशाख","जेठ","असार","साउन","भदौ","असोज",
+  "कात्तिक","मंसिर","पुस","माघ","फागुन","चैत",
+];
+const NP_DAY_NAMES = ["आइतबार","सोमबार","मंगलबार","बुधबार","बिहिबार","शुक्रबार","शनिबार"];
+
+// Baisakh 1 (AD) and month-day-counts for each BS year.
+// Month lengths sourced from official Nepal Panchang / Drik Panchang.
+const _BS_YEARS = {
+  2079: { s: [2022,  3, 14], m: [31,31,32,32,31,30,30,29,30,29,30,30] },
+  2080: { s: [2023,  3, 14], m: [31,32,31,32,31,30,30,29,30,29,30,30] },
+  2081: { s: [2024,  3, 13], m: [31,31,32,31,31,31,30,29,30,30,30,30] },
+  2082: { s: [2025,  3, 14], m: [31,32,31,32,31,30,30,30,29,29,30,30] },
+  2083: { s: [2026,  3, 14], m: [31,31,32,31,31,31,29,30,30,29,30,30] },
+  2084: { s: [2027,  3, 13], m: [31,31,32,32,31,30,30,29,30,29,30,30] },
+  2085: { s: [2028,  3, 13], m: [31,32,31,32,31,30,30,29,30,29,30,30] },
+  2086: { s: [2029,  3, 14], m: [31,31,32,31,31,30,30,30,29,29,30,31] },
+  2087: { s: [2030,  3, 14], m: [31,31,32,31,31,30,30,30,29,30,29,31] },
+  2088: { s: [2031,  3, 14], m: [31,32,31,32,31,30,30,29,30,29,30,30] },
+  2089: { s: [2032,  3, 13], m: [31,31,32,31,31,31,30,29,30,30,30,30] },
+  2090: { s: [2033,  3, 14], m: [31,32,31,32,31,30,30,30,29,29,30,30] },
+};
+
+/**
+ * Converts a JS Date to { year, month, day } in Bikram Sambat.
+ * Uses official Baisakh-1 anchor dates + month-length tables.
+ */
+function adToBS(adDate) {
+  const d = new Date(adDate);
+  d.setHours(0, 0, 0, 0);
+  const years = Object.keys(_BS_YEARS).map(Number).sort((a, b) => a - b);
+  let bsYear = null;
+  for (let i = years.length - 1; i >= 0; i--) {
+    const y = years[i];
+    const [sy, sm, sd] = _BS_YEARS[y].s;
+    const start = new Date(sy, sm, sd);
+    if (d >= start) { bsYear = y; break; }
+  }
+  if (!bsYear) return null;
+  const [sy, sm, sd] = _BS_YEARS[bsYear].s;
+  const start = new Date(sy, sm, sd);
+  let rem = Math.round((d.getTime() - start.getTime()) / 86400000);
+  let month = 0;
+  const ml = _BS_YEARS[bsYear].m;
+  while (month < 12 && rem >= ml[month]) { rem -= ml[month]; month++; }
+  return { year: bsYear, month: month + 1, day: rem + 1 };
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  DATE HELPERS  (handles Bikram Sambat yyyy-mm-dd format)
 // ═══════════════════════════════════════════════════════════════
 
@@ -758,6 +809,7 @@ export default function Dashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [idleWarning,       setIdleWarning]       = useState(false);
   const [userRole,          setUserRole]           = useState('admin');
+  const [now,               setNow]               = useState(() => new Date());
 
   // ── RESPONSIVE CHART CONFIG ────────────────────────────────
   const [winW, setWinW] = useState(() =>
@@ -806,6 +858,12 @@ export default function Dashboard() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.role) setUserRole(d.role); })
       .catch(() => {});
+  }, []);
+
+  // Live clock — tick every second
+  useEffect(() => {
+    const iv = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(iv);
   }, []);
 
   // ── FETCH ──────────────────────────────────────────────────
@@ -2316,26 +2374,47 @@ export default function Dashboard() {
               आ.व. {toNP("2082")}/{toNP("83")} • ठेक्का तथा योजना अनुगमन ड्यासबोर्ड
             </p>
           </div>
-          {/* Right — last sync */}
+          {/* Right — live BS clock + last sync */}
           <div style={{ textAlign: "right" }}>
-            <p style={{ margin: 0, fontSize: 10.5, color: T.muted, fontWeight: 600 }}>अन्तिम अद्यावधिक मिति</p>
-            {lastSync ? (
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: T.blue, fontWeight: 700 }}>
-                {(() => {
-                  const d = lastSync;
-                  const yy  = toNP(d.getFullYear());
-                  const mm  = toNP(String(d.getMonth() + 1).padStart(2, "0"));
-                  const dd  = toNP(String(d.getDate()).padStart(2, "0"));
-                  let   h   = d.getHours();
-                  const min = toNP(String(d.getMinutes()).padStart(2, "0"));
-                  const ampm = h >= 12 ? "PM" : "AM";
-                  h = h % 12 || 12;
-                  return `${yy}-${mm}-${dd} • ${toNP(h)}:${min} ${ampm}`;
-                })()}
-              </p>
-            ) : (
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: T.muted }}>—</p>
-            )}
+            {(() => {
+              const bs   = adToBS(now);
+              const h24  = now.getHours();
+              const h12  = h24 % 12 || 12;
+              const ampm = h24 >= 12 ? "PM" : "AM";
+              const min  = toNP(String(now.getMinutes()).padStart(2, "0"));
+              const sec  = toNP(String(now.getSeconds()).padStart(2, "0"));
+              const bsStr = bs
+                ? `${toNP(bs.year)} ${NP_MONTH_NAMES[bs.month]} ${toNP(bs.day)}, ${NP_DAY_NAMES[now.getDay()]}`
+                : "";
+              const timeStr = `${toNP(h12)}:${min}:${sec} ${ampm}`;
+              return (
+                <>
+                  {bsStr && (
+                    <p style={{ margin: 0, fontSize: 11.5, color: T.blue, fontWeight: 700 }}>
+                      {bsStr}
+                    </p>
+                  )}
+                  <p style={{ margin: "1px 0 0", fontSize: 13, color: T.blue, fontWeight: 800, fontVariantNumeric: "tabular-nums", letterSpacing: 0.5 }}>
+                    {timeStr}
+                  </p>
+                  {lastSync && (
+                    <p style={{ margin: "3px 0 0", fontSize: 9.5, color: T.muted }}>
+                      {(() => {
+                        const d  = lastSync;
+                        const yy = toNP(d.getFullYear());
+                        const mm = toNP(String(d.getMonth() + 1).padStart(2, "0"));
+                        const dd = toNP(String(d.getDate()).padStart(2, "0"));
+                        let   lh = d.getHours();
+                        const lm = toNP(String(d.getMinutes()).padStart(2, "0"));
+                        const la = lh >= 12 ? "PM" : "AM";
+                        lh = lh % 12 || 12;
+                        return `अन्तिम अद्यावधिक: ${yy}-${mm}-${dd} ${toNP(lh)}:${lm} ${la}`;
+                      })()}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </footer>
