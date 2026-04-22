@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useFontReady } from "./hooks/useFontReady";
+import { useFontReady }   from "./hooks/useFontReady";
+import { useIdleLogout } from "./hooks/useIdleLogout";
 import {
   PieChart, Pie, Cell, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -44,6 +45,8 @@ const C_DEFAULT = {
   PBG_BANK: 42, PBG_REF: 43, PBG_AMT: 44, PBG_ISSUE: 45, PBG_EXPIRY: 46,
   // APG: 48=bank, 49=ref-no, 50=amount, 51=issue, 52=expiry  (47 is "घटी PBG" — not APG!)
   APG_BANK: 48, APG_REF: 49, APG_AMT: 50, APG_ISSUE: 51, APG_EXPIRY: 52,
+  // Multi-APG: array of { BANK, REF, AMT, ISSUE, EXPIRY } — one entry per APG column group
+  APG_GROUPS: [{ BANK: 48, REF: 49, AMT: 50, ISSUE: 51, EXPIRY: 52 }],
 };
 
 // ── Keyword match helper ──────────────────────────────────────
@@ -90,6 +93,9 @@ function detectCols(row0, row1) {
   // In this sheet each guarantee column header contains the type name:
   //   "PBG जारी गरेको Bank,ठेगाना", "PBG नं.", "APG को रकम", "बिमा जारी मिति" …
   // "घटी PBG/APG को म्याद" are deadline-extension columns — skip them.
+  // APG accumulators — collect ALL matching columns so multiple APG groups are detected.
+  const _apgBanks = [], _apgRefs = [], _apgAmts = [], _apgIssues = [], _apgExpiries = [];
+
   for (let i = 0; i < len; i++) {
     const h = String(r1[i] || "").trim();
     const L = h.toLowerCase();
@@ -104,13 +110,13 @@ function detectCols(row0, row1) {
       else if (kwMatch(h, ["म्याद","expiry","valid"]))            cm.PBG_EXPIRY= i;
     }
 
-    // ── APG ────────────────────────────────────────────────────────────────
+    // ── APG (multi-group: push to accumulators, not direct assign) ─────────
     if (!isGhati && (L.includes("apg") || kwMatch(h, ["अग्रिम भुक्तानी","advance payment"]))) {
-      if      (kwMatch(h, ["bank","बैंक","वित्तीय","ठेगाना"])) cm.APG_BANK   = i;
-      else if (kwMatch(h, ["नं.","नम्बर","no.","no,","number"])) cm.APG_REF   = i;
-      else if (kwMatch(h, ["रकम","amount"]))                      cm.APG_AMT   = i;
-      else if (kwMatch(h, ["जारी मिति","issue","जारी"]))          cm.APG_ISSUE = i;
-      else if (kwMatch(h, ["म्याद","expiry","valid"]))            cm.APG_EXPIRY= i;
+      if      (kwMatch(h, ["bank","बैंक","वित्तीय","ठेगाना"])) _apgBanks.push(i);
+      else if (kwMatch(h, ["नं.","नम्बर","no.","no,","number"])) _apgRefs.push(i);
+      else if (kwMatch(h, ["रकम","amount"]))                      _apgAmts.push(i);
+      else if (kwMatch(h, ["जारी मिति","issue","जारी"]))          _apgIssues.push(i);
+      else if (kwMatch(h, ["म्याद","expiry","valid"]))            _apgExpiries.push(i);
     }
 
     // ── Insurance ──────────────────────────────────────────────────────────
@@ -121,10 +127,30 @@ function detectCols(row0, row1) {
     else if (kwMatch(h, ["बिमाको म्याद","बीमाको म्याद","insurance expiry"]))    cm.INS_EXPIRY= i;
   }
 
+  // ── Build APG_GROUPS from accumulators ────────────────────────────────
+  // Each positional slot (index 0, 1, 2…) = one APG column group in the sheet.
+  // Zip by sorted position so group 0 = leftmost APG cols, group 1 = next set, etc.
+  const _nGroups = Math.max(_apgBanks.length, _apgRefs.length, _apgAmts.length, _apgIssues.length, _apgExpiries.length);
+  if (_nGroups > 0) {
+    cm.APG_GROUPS = Array.from({ length: _nGroups }, (_, g) => ({
+      BANK:   _apgBanks[g]    ?? null,
+      REF:    _apgRefs[g]     ?? null,
+      AMT:    _apgAmts[g]     ?? null,
+      ISSUE:  _apgIssues[g]   ?? null,
+      EXPIRY: _apgExpiries[g] ?? null,
+    }));
+    // Keep legacy single-index keys pointing to first group for backward compat
+    cm.APG_BANK   = _apgBanks[0]    ?? cm.APG_BANK;
+    cm.APG_REF    = _apgRefs[0]     ?? cm.APG_REF;
+    cm.APG_AMT    = _apgAmts[0]     ?? cm.APG_AMT;
+    cm.APG_ISSUE  = _apgIssues[0]   ?? cm.APG_ISSUE;
+    cm.APG_EXPIRY = _apgExpiries[0] ?? cm.APG_EXPIRY;
+  }
+
   console.info("[detectCols] Final mapping →",
     `INS:bank=${cm.INS_BANK} amt=${cm.INS_AMT} issue=${cm.INS_ISSUE} exp=${cm.INS_EXPIRY}`,
     `PBG:bank=${cm.PBG_BANK} ref=${cm.PBG_REF} amt=${cm.PBG_AMT} issue=${cm.PBG_ISSUE} exp=${cm.PBG_EXPIRY}`,
-    `APG:bank=${cm.APG_BANK} ref=${cm.APG_REF} amt=${cm.APG_AMT} issue=${cm.APG_ISSUE} exp=${cm.APG_EXPIRY}`
+    `APG groups(${cm.APG_GROUPS.length}):`, cm.APG_GROUPS
   );
   return cm;
 }
@@ -244,6 +270,20 @@ function rowToProject(row, cm, idx) {
     };
   };
 
+  // Build apgs array (multiple APGs per project, sorted nearest expiry first)
+  const _apgsArr = (() => {
+    const groups = cm.APG_GROUPS || [{ BANK: cm.APG_BANK, REF: cm.APG_REF, AMT: cm.APG_AMT, ISSUE: cm.APG_ISSUE, EXPIRY: cm.APG_EXPIRY }];
+    return groups
+      .map(g => gua(g.BANK, g.REF, g.AMT, g.ISSUE, g.EXPIRY))
+      .filter(g => g.bank !== "—" || g.ref !== "—" || g.amt > 0 || g.expiry !== "—")
+      .sort((a, b) => {
+        const da = parseBS(a.expiry), db = parseBS(b.expiry);
+        if (!da || isNaN(da)) return 1;
+        if (!db || isNaN(db)) return -1;
+        return da - db;
+      });
+  })();
+
   return {
     id: `${sn}-${idx}`,
     sn,
@@ -281,7 +321,8 @@ function rowToProject(row, cm, idx) {
     // ── Guarantees (correctly mapped via dynamic cm) ──────────
     ins: gua(cm.INS_BANK, cm.INS_REF,  cm.INS_AMT, cm.INS_ISSUE, cm.INS_EXPIRY),
     pbg: gua(cm.PBG_BANK, cm.PBG_REF,  cm.PBG_AMT, cm.PBG_ISSUE, cm.PBG_EXPIRY),
-    apg: gua(cm.APG_BANK, cm.APG_REF,  cm.APG_AMT, cm.APG_ISSUE, cm.APG_EXPIRY),
+    apgs: _apgsArr,
+    apg:  _apgsArr[0] ?? null,
     ward: (() => { const m = name.match(/[Ii]tahari[-\s]*(\d+)/); return m ? +m[1] : 0; })(),
   };
 }
@@ -426,6 +467,11 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
     : daysLeft < 0  ? `${toNP(Math.abs(daysLeft))} दिन अघि म्याद सकियो`
     : daysLeft === 0 ? "आज म्याद सकिँदैछ"
     : `${toNP(daysLeft)} दिन बाँकी`;
+  const daysLabelColor = daysLeft === null ? T.muted
+    : daysLeft < 0   ? T.expired
+    : daysLeft <= 30  ? T.expired
+    : daysLeft <= 90  ? T.near
+    : T.valid;
 
   const fields = [
     ["बैंक/वित्तीय संस्था", g.bank || "—"],
@@ -450,7 +496,7 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
         {fields.map(([l, v]) => (
           <div key={l} style={{ gridColumn: l === "बैंक/वित्तीय संस्था" ? "1/-1" : undefined }}>
             <span style={{ color: T.muted }}>{l}: </span>
-            <span style={{ fontWeight: 600, color: l === "म्याद सकिने मिति" && gs ? gs.color : T.text }}>{v}</span>
+            <span style={{ fontWeight: 600, color: l === "म्याद सकिने मिति" && gs ? gs.color : l === "समय स्थिति" ? daysLabelColor : T.text }}>{v}</span>
           </div>
         ))}
       </div>
@@ -592,7 +638,10 @@ export default function Dashboard() {
   const [sel,        setSel]        = useState(null);
   const [sKey,       setSKey]       = useState("totalAmount");
   const [sDir,       setSDir]       = useState("desc");
-  const [alertOpen,  setAlertOpen]  = useState(false);
+  const [alertOpen,        setAlertOpen]        = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [idleWarning,       setIdleWarning]       = useState(false);
+  const [userRole,          setUserRole]           = useState('admin');
 
   // ── RESPONSIVE CHART CONFIG ────────────────────────────────
   const [winW, setWinW] = useState(() =>
@@ -624,15 +673,41 @@ export default function Dashboard() {
     window.location.replace('/login');
   }
 
+  function handleLogoutClick() {
+    setShowLogoutConfirm(true);
+  }
+
+  // Idle logout: warn at 14 min, auto-logout at 15 min
+  useIdleLogout({
+    onWarning: () => setIdleWarning(true),
+    onActive:  () => setIdleWarning(false),
+    onLogout:  handleLogout,
+  });
+
+  // Fetch role from session
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.role) setUserRole(d.role); })
+      .catch(() => {});
+  }, []);
+
   // ── FETCH ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
-      console.info("[Dashboard] Fetching:", CSV_URL);
-      const res = await fetch(CSV_URL);
-      if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
-      const csv = await res.text();
+      let csv = null;
+      try {
+        const r = await fetch('/api/data');
+        if (r.ok) { csv = await r.text(); }
+      } catch { /* fall through */ }
+      if (!csv) {
+        console.info("[Dashboard] Fetching:", CSV_URL);
+        const res = await fetch(CSV_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+        csv = await res.text();
+      }
       if (!csv || csv.length < 100) throw new Error("CSV रिक्त छ");
 
       const { data, errors } = Papa.parse(csv, { skipEmptyLines: true });
@@ -687,7 +762,7 @@ export default function Dashboard() {
     const ss = [
       expiryStatus(p.ins?.expiry),
       expiryStatus(p.pbg?.expiry),
-      expiryStatus(p.apg?.expiry),
+      ...(p.apgs?.length ? p.apgs.map(a => expiryStatus(a.expiry)) : [expiryStatus(p.apg?.expiry)]),
     ].filter(Boolean);
     if (ss.includes("expired")) return "expired";
     if (ss.includes("near"))    return "near";
@@ -800,20 +875,26 @@ export default function Dashboard() {
   // ── All guarantee entries (every project × 3 types) ─────────
   const guaranteeData = useMemo(() => {
     const list = [];
-    const G_TYPES = [
-      { key: "ins", label: "बीमा (Insurance)" },
-      { key: "pbg", label: "कार्यसम्पादन जमानत (PBG)" },
-      { key: "apg", label: "अग्रिम भुक्तानी जमानत (APG)" },
-    ];
     projects.forEach(p => {
-      G_TYPES.forEach(({ key, label }) => {
-        const g  = p[key];
-        if (!g) return;
-        const st = expiryStatus(g.expiry);
-        // Only include rows that have at least one real field
-        const hasData = (g.bank && g.bank !== "—") || g.amt > 0 ||
-                        (g.expiry && g.expiry !== "—");
-        if (hasData) list.push({ project: p, key, label, g, st });
+      // ── Insurance ─────────────────────────────────────────
+      const ins = p.ins;
+      if (ins) {
+        const hasData = (ins.bank && ins.bank !== "—") || ins.amt > 0 || (ins.expiry && ins.expiry !== "—");
+        if (hasData) list.push({ project: p, key: "ins", label: "बीमा (Insurance)", g: ins, st: expiryStatus(ins.expiry), apgIdx: null });
+      }
+      // ── PBG ───────────────────────────────────────────────
+      const pbg = p.pbg;
+      if (pbg) {
+        const hasData = (pbg.bank && pbg.bank !== "—") || pbg.amt > 0 || (pbg.expiry && pbg.expiry !== "—");
+        if (hasData) list.push({ project: p, key: "pbg", label: "कार्यसम्पादन जमानत (PBG)", g: pbg, st: expiryStatus(pbg.expiry), apgIdx: null });
+      }
+      // ── APG (one entry per APG in the project's apgs array) ─
+      const apgs = p.apgs?.length ? p.apgs : (p.apg ? [p.apg] : []);
+      apgs.forEach((a, idx) => {
+        const hasData = (a.bank && a.bank !== "—") || a.amt > 0 || (a.expiry && a.expiry !== "—");
+        if (!hasData) return;
+        const suffix = apgs.length > 1 ? ` ${toNP(idx + 1)}` : "";
+        list.push({ project: p, key: "apg", label: `अग्रिम भुक्तानी जमानत (APG${suffix})`, g: a, st: expiryStatus(a.expiry), apgIdx: idx });
       });
     });
     // Sort: expired first, then near, then valid
@@ -1038,10 +1119,10 @@ export default function Dashboard() {
                 style={{ padding: "5px 14px", borderRadius: 8, border: "2px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: "inherit" }}>
                 {loading ? "लोड…" : "🔄 रिफ्रेश"}
               </button>
-              <button onClick={handleLogout}
-                title="लग आउट"
+              <button onClick={handleLogoutClick}
+                title="बाहिर निस्कनुहोस्"
                 style={{ padding: "5px 12px", borderRadius: 8, border: "2px solid rgba(255,255,255,.35)", background: "rgba(0,0,0,.18)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                🔓 बाहिर निस्कनुस्
+                बाहिर निस्कनुहोस्
               </button>
             </div>
           </div>
@@ -1623,16 +1704,22 @@ export default function Dashboard() {
                       {visibleG.length === 0 ? (
                         <tr><td colSpan={10} style={{ padding: 36, textAlign: "center", color: T.muted }}>कुनै ग्यारेन्टी फेला परेन</td></tr>
                       ) : visibleG.map((item, i) => {
-                        const { project: p, key: gKey, label, g, st } = item;
+                        const { project: p, key: gKey, label, g, st, apgIdx } = item;
                         const gs = st ? GSTATUS_STYLE[st] : null;
                         const exp = parseBS(g.expiry);
                         const daysLeft = exp && !isNaN(exp)
                           ? Math.floor((exp - Date.now()) / 86400000)
                           : null;
+                        const daysColor = daysLeft === null ? T.muted
+                          : daysLeft < 0   ? T.expired
+                          : daysLeft <= 30  ? T.expired
+                          : daysLeft <= 90  ? T.near
+                          : T.valid;
                         const gTypeColor = gKey === "ins" ? T.blue : gKey === "pbg" ? T.green : T.orange;
                         const hasRef = gKey !== "ins" && g.ref && g.ref !== "—";
+                        const rowKey = gKey === "apg" ? `${p.id}-apg-${apgIdx ?? 0}` : `${p.id}-${gKey}`;
                         return (
-                          <tr key={`${p.id}-${gKey}`} onClick={() => setSel(p)} className="hov"
+                          <tr key={rowKey} onClick={() => setSel(p)} className="hov"
                             style={{ background: gs ? gs.bg : (i % 2 === 0 ? T.white : "#F7FAFD"), cursor: "pointer", borderLeft: gs ? `3px solid ${gs.color}` : "none" }}>
                             {/* योजना */}
                             <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, overflow: "hidden" }}>
@@ -1642,7 +1729,7 @@ export default function Dashboard() {
                             {/* प्रकार */}
                             <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}` }}>
                               <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: `${gTypeColor}18`, color: gTypeColor }}>
-                                {gKey === "ins" ? "बीमा" : gKey === "pbg" ? "PBG" : "APG"}
+                                {gKey === "ins" ? "बीमा" : gKey === "pbg" ? "PBG" : apgIdx != null && apgIdx > 0 ? `APG ${toNP(apgIdx + 1)}` : "APG"}
                               </span>
                             </td>
                             {/* अवस्था */}
@@ -1664,8 +1751,7 @@ export default function Dashboard() {
                             {/* म्याद */}
                             <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, fontSize: 11, color: gs ? gs.color : T.text }}>{g.expiry}</td>
                             {/* दिन बाँकी */}
-                            <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, fontSize: 11,
-                              color: daysLeft === null ? T.muted : daysLeft < 0 ? T.expired : daysLeft <= NEAR_EXPIRY_DAYS ? T.near : T.valid }}>
+                            <td style={{ padding: "7px 8px", borderBottom: `1px solid ${T.border}`, fontWeight: 700, fontSize: 11, color: daysColor }}>
                               {daysLeft === null ? "—"
                                 : daysLeft < 0 ? toNP(Math.abs(daysLeft)) + " दिन अघि"
                                 : toNP(daysLeft) + " दिन"}
@@ -1685,19 +1771,26 @@ export default function Dashboard() {
                 {visibleG.length === 0 ? (
                   <div style={{ padding: 28, textAlign: "center", color: T.muted, fontSize: 13 }}>कुनै ग्यारेन्टी फेला परेन</div>
                 ) : visibleG.map((item) => {
-                  const { project: p, key: gKey, g, st } = item;
+                  const { project: p, key: gKey, g, st, apgIdx } = item;
                   const gs = st ? GSTATUS_STYLE[st] : null;
                   const exp = parseBS(g.expiry);
                   const daysLeft = exp && !isNaN(exp) ? Math.floor((exp - Date.now()) / 86400000) : null;
+                  const daysColor = daysLeft === null ? T.muted
+                    : daysLeft < 0   ? T.expired
+                    : daysLeft <= 30  ? T.expired
+                    : daysLeft <= 90  ? T.near
+                    : T.valid;
                   const gTypeColor = gKey === "ins" ? T.blue : gKey === "pbg" ? T.green : T.orange;
                   const hasRef = gKey !== "ins" && g.ref && g.ref !== "—";
+                  const typeLabel = gKey === "ins" ? "बीमा" : gKey === "pbg" ? "PBG" : apgIdx != null && apgIdx > 0 ? `APG ${toNP(apgIdx + 1)}` : "APG";
+                  const mobileKey = gKey === "apg" ? `${p.id}-apg-${apgIdx ?? 0}` : `${p.id}-${gKey}`;
                   return (
-                    <div key={`${p.id}-${gKey}`} onClick={() => setSel(p)}
+                    <div key={mobileKey} onClick={() => setSel(p)}
                       style={{ background: gs ? gs.bg : T.white, border: `1px solid ${gs ? gs.color : T.border}`, borderLeft: `4px solid ${gs ? gs.color : gTypeColor}`, borderRadius: 12, padding: "12px 14px", marginBottom: 9, cursor: "pointer" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, flex: 1, marginRight: 8, lineHeight: 1.4 }}>{p.projectName}</div>
                         <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: `${gTypeColor}18`, color: gTypeColor, flexShrink: 0 }}>
-                          {gKey === "ins" ? "बीमा" : gKey.toUpperCase()}
+                          {typeLabel}
                         </span>
                       </div>
                       {gs && <div style={{ fontSize: 11.5, fontWeight: 700, color: gs.color, marginBottom: 7 }}>{gs.icon} {gs.label}</div>}
@@ -1709,7 +1802,7 @@ export default function Dashboard() {
                         <div><span style={{ color: T.muted }}>म्याद: </span><span style={{ fontWeight: 700, color: gs ? gs.color : T.text }}>{g.expiry || "—"}</span></div>
                       </div>
                       {daysLeft !== null && (
-                        <div style={{ marginTop: 7, fontSize: 11, fontWeight: 700, color: gs ? gs.color : T.muted }}>
+                        <div style={{ marginTop: 7, fontSize: 11, fontWeight: 700, color: daysColor }}>
                           {daysLeft < 0 ? `${toNP(Math.abs(daysLeft))} दिन अघि म्याद सकियो` : `${toNP(daysLeft)} दिन बाँकी`}
                         </div>
                       )}
@@ -2046,18 +2139,27 @@ export default function Dashboard() {
             )}
 
             {/* Guarantees */}
-            {(
-              sel.ins?.bank  !== "—" || sel.ins?.expiry  !== "—" || (sel.ins?.amt  > 0) || sel.ins?.ref  !== "—" ||
-              sel.pbg?.bank  !== "—" || sel.pbg?.expiry  !== "—" || (sel.pbg?.amt  > 0) || sel.pbg?.ref  !== "—" ||
-              sel.apg?.bank  !== "—" || sel.apg?.expiry  !== "—" || (sel.apg?.amt  > 0) || sel.apg?.ref  !== "—"
-            ) && (
-              <div>
-                <h4 style={{ margin: "0 0 10px", fontSize: 13, color: T.blue, fontWeight: 700, borderBottom: `1px solid ${T.border}`, paddingBottom: 6 }}>ग्यारेन्टी विवरण</h4>
-                <GuaranteeBadge title="बीमा (Insurance)"                  g={sel.ins} showRef={true} />
-                <GuaranteeBadge title="कार्यसम्पादन जमानत (PBG)"          g={sel.pbg} showRef={true}  />
-                <GuaranteeBadge title="अग्रिम भुक्तानी जमानत (APG)"       g={sel.apg} showRef={true}  />
-              </div>
-            )}
+            {(() => {
+              const hasIns = sel.ins?.bank !== "—" || sel.ins?.expiry !== "—" || sel.ins?.amt > 0;
+              const hasPbg = sel.pbg?.bank !== "—" || sel.pbg?.expiry !== "—" || sel.pbg?.amt > 0;
+              const selApgs = sel.apgs?.length ? sel.apgs : (sel.apg ? [sel.apg] : []);
+              if (!hasIns && !hasPbg && selApgs.length === 0) return null;
+              return (
+                <div>
+                  <h4 style={{ margin: "0 0 10px", fontSize: 13, color: T.blue, fontWeight: 700, borderBottom: `1px solid ${T.border}`, paddingBottom: 6 }}>ग्यारेन्टी विवरण</h4>
+                  <GuaranteeBadge title="बीमा (Insurance)"             g={sel.ins} showRef={true} />
+                  <GuaranteeBadge title="कार्यसम्पादन जमानत (PBG)"    g={sel.pbg} showRef={true} />
+                  {selApgs.map((a, idx) => (
+                    <GuaranteeBadge
+                      key={idx}
+                      title={selApgs.length > 1 ? `अग्रिम भुक्तानी जमानत (APG ${toNP(idx + 1)})` : "अग्रिम भुक्तानी जमानत (APG)"}
+                      g={a}
+                      showRef={true}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
 
           </div>
         </div>
@@ -2098,6 +2200,37 @@ export default function Dashboard() {
           </div>
         </div>
       </footer>
+
+      {/* ── IDLE WARNING BANNER ── */}
+      {idleWarning && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#7B3F00", color: "#fff", textAlign: "center", padding: "12px 16px", fontSize: 13, fontFamily: "inherit", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          ⚠️ निष्क्रियताका कारण १ मिनेटमा स्वत: बाहिर निस्कनुहोस् प्रक्रिया सुरु हुनेछ।
+          <button onClick={() => setIdleWarning(false)}
+            style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: "#fff", color: "#7B3F00", fontWeight: 700, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>
+            सक्रिय रहनुहोस्
+          </button>
+        </div>
+      )}
+
+      {/* ── LOGOUT CONFIRMATION MODAL ── */}
+      {showLogoutConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: "32px 28px", maxWidth: 360, width: "90%", textAlign: "center", fontFamily: "inherit", boxShadow: "0 8px 40px rgba(0,0,0,.25)" }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: "#1A2332", margin: "0 0 8px" }}>बाहिर निस्कनुहोस्?</p>
+            <p style={{ fontSize: 13, color: "#5A6A7E", margin: "0 0 24px" }}>के तपाईं साँच्चै बाहिर निस्कन चाहनुहुन्छ?</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setShowLogoutConfirm(false)}
+                style={{ padding: "8px 22px", borderRadius: 8, border: "2px solid #D8E0EC", background: "#fff", color: "#1A2332", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                रद्द गर्नुहोस्
+              </button>
+              <button onClick={handleLogout}
+                style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: "#DC143C", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                बाहिर निस्कनुहोस्
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

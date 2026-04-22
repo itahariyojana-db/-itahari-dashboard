@@ -187,7 +187,7 @@ export default function LoginPage() {
               letterSpacing: 0.3,
             }}
           >
-            {loading ? 'प्रवेश गर्दैछ…' : 'प्रवेश गर्नुस्'}
+            {loading ? 'प्रवेश गर्दैछ…' : 'प्रवेश गर्नुहोस्'}
           </button>
         </form>
 
