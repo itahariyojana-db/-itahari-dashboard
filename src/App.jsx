@@ -620,15 +620,21 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
     : daysLeft === 0 ? "आज म्याद सकिँदैछ"
     : `${toNP(daysLeft)} दिन बाँकी`;
 
+  const multiDaysLabel = (d) => d === null ? "—"
+    : d < 0  ? `${toNP(Math.abs(d))} दिन अघि म्याद सकिएको`
+    : d === 0 ? "आज म्याद सकिँदैछ"
+    : `${toNP(d)} दिन बाँकी`;
+
   const fields = [
     ["बैंक/वित्तीय संस्था", g.bank || "—"],
     ...(hasRef ? [["जमानत पत्र नं.", g.ref]] : []),
     ["जमानत रकम", g.amt > 0 ? fmt(g.amt) : "—"],
     ["जारी मिति", g.issue || "—"],
-    // For multi-expiry APG: show all expiry dates on one line
-    ["म्याद सकिने मिति", hasMulti ? g.expiries.join(", ") : (g.expiry || "—")],
-    // Single remaining days (non-multi)
-    ...(!hasMulti && singleDaysLabel ? [["समय स्थिति", singleDaysLabel]] : []),
+    // Single-expiry (INS / PBG / single APG): show expiry + days in grid
+    ...(!hasMulti ? [
+      ["म्याद सकिने मिति", g.expiry || "—"],
+      ...(singleDaysLabel ? [["समय स्थिति", singleDaysLabel]] : []),
+    ] : []),
   ];
 
   return (
@@ -649,22 +655,23 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
           </div>
         ))}
       </div>
-      {/* Multi-expiry remaining days — shown as "दिन बाँकी: 120, 165 दिन" */}
-      {hasMulti && g.remainingDays?.length > 0 && (
+      {/* Multi-expiry APG: one row per date with individual days-remaining label */}
+      {hasMulti && g.expiries?.length > 0 && (
         <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${gs ? gs.color + "44" : T.border}` }}>
-          <span style={{ color: T.muted, fontSize: 11 }}>दिन बाँकी: </span>
-          <span style={{ fontWeight: 700, fontSize: 11 }}>
-            {g.remainingDays.map((d, i) => {
-              const c = daysLabelColor(d);
-              const label = d === null ? "—" : d < 0 ? `${toNP(Math.abs(d))} अघि` : toNP(d);
-              return (
-                <span key={i} style={{ color: c }}>
-                  {i > 0 ? ", " : ""}{label}
+          {g.expiries.map((exp, i) => {
+            const d = g.remainingDays?.[i] ?? null;
+            const c = daysLabelColor(d);
+            const label = multiDaysLabel(d);
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, marginTop: i > 0 ? 5 : 0 }}>
+                <span>
+                  <span style={{ color: T.muted }}>म्याद सकिने मिति {toNP(i + 1)}: </span>
+                  <span style={{ fontWeight: 600, color: gs ? gs.color : T.text }}>{exp}</span>
                 </span>
-              );
-            })}
-            {" "}दिन
-          </span>
+                <span style={{ fontWeight: 700, color: c, marginLeft: 8, flexShrink: 0 }}>{label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
