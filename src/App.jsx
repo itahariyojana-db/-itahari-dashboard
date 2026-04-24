@@ -632,7 +632,8 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
     ["बैंक/वित्तीय संस्था", g.bank || "—"],
     // Ref: in grid only when single value
     ...(!hasMultiRef && hasRef ? [["जमानत पत्र नं.", g.ref]] : []),
-    ["जमानत रकम", g.amt > 0 ? fmt(g.amt) : "—"],
+    // Amount: in grid only when single (multi shows per-group below)
+    ...(!hasMulti ? [["जमानत रकम", g.amt > 0 ? fmt(g.amt) : "—"]] : []),
     // Issue: in grid only when single value
     ...(!hasMultiIssue ? [["जारी मिति", g.issue || "—"]] : []),
     // Expiry + days: in grid only when single expiry
@@ -667,7 +668,9 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
             hasMultiRef   ? g.refs.length     : 0,
             hasMultiIssue ? g.issues.length   : 0,
             hasMultiExp   ? g.expiries.length : 0,
-          ) }, (_, i) => (
+          ) }, (_, i, arr) => {
+            const perAmt = g.amt > 0 ? g.amt / arr.length : 0;
+            return (
             <div key={i} style={{
               display: "flex", flexDirection: "column", gap: 4,
               marginTop: i > 0 ? 7 : 0,
@@ -678,6 +681,12 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
                 <div style={{ fontSize: 11 }}>
                   <span style={{ color: T.muted }}>जमानत पत्र नं. {toNP(i + 1)}: </span>
                   <span style={{ fontWeight: 600, color: T.text }}>{g.refs[i]}</span>
+                </div>
+              )}
+              {perAmt > 0 && (
+                <div style={{ fontSize: 11 }}>
+                  <span style={{ color: T.muted }}>जमानत रकम: </span>
+                  <span style={{ fontWeight: 600, color: T.text }}>{fmt(perAmt)}</span>
                 </div>
               )}
               {hasMultiIssue && g.issues[i] != null && (
@@ -698,7 +707,7 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
                 </div>
               )}
             </div>
-          ))}
+          ); })}
         </div>
       )}
     </div>
