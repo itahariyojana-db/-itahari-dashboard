@@ -383,6 +383,7 @@ function rowToProject(row, cm, idx) {
 
     // Split multi-value fields; fall back to embedded ref for single-value
     const refs     = (rawRef || embRef).split("/").map(s => s.trim()).filter(Boolean);
+    const issues   = rawIssue !== "—" ? rawIssue.split(",").map(s => s.trim()).filter(Boolean) : [];
     const expiries = rawExpiry.split(",").map(s => s.trim()).filter(Boolean);
 
     // Compute remaining days for each expiry date (using today midnight — not Date.now())
@@ -397,14 +398,15 @@ function rowToProject(row, cm, idx) {
       return best;
     }, null) ?? (expiries[0] || "—");
 
-    console.debug("[APG multi-value]", { bank, refs, expiries, remainingDays });
+    console.debug("[APG multi-value]", { bank, refs, issues, expiries, remainingDays });
 
     return {
       bank,
       ref:          refs.length > 0 ? refs.join(" / ") : (embRef || "—"),
       refs,
       amt:          rawAmt,
-      issue:        rawIssue,
+      issue:        issues.length > 0 ? issues.join(", ") : rawIssue,
+      issues,
       expiry:       nearestExpiry,   // backward-compat: nearest expiry
       expiries,
       remainingDays,
@@ -603,11 +605,12 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
     g.amt > 0;
   if (!hasData) return null;
 
-  // Single expiry path (INS / PBG / APG with one date)
   const daysLeft = daysUntil(g.expiry);
 
-  // Multi-expiry path — APG can have expiries[] with remainingDays[]
-  const hasMulti = g.expiries?.length > 1;
+  const hasMultiRef   = g.refs?.length > 1;
+  const hasMultiIssue = g.issues?.length > 1;
+  const hasMultiExp   = g.expiries?.length > 1;
+  const hasMulti      = hasMultiRef || hasMultiIssue || hasMultiExp;
 
   const daysLabelColor = (d) => d === null ? T.muted
     : d < 0   ? T.expired
@@ -627,11 +630,13 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
 
   const fields = [
     ["बैंक/वित्तीय संस्था", g.bank || "—"],
-    ...(hasRef ? [["जमानत पत्र नं.", g.ref]] : []),
+    // Ref: in grid only when single value
+    ...(!hasMultiRef && hasRef ? [["जमानत पत्र नं.", g.ref]] : []),
     ["जमानत रकम", g.amt > 0 ? fmt(g.amt) : "—"],
-    ["जारी मिति", g.issue || "—"],
-    // Single-expiry (INS / PBG / single APG): show expiry + days in grid
-    ...(!hasMulti ? [
+    // Issue: in grid only when single value
+    ...(!hasMultiIssue ? [["जारी मिति", g.issue || "—"]] : []),
+    // Expiry + days: in grid only when single expiry
+    ...(!hasMultiExp ? [
       ["म्याद सकिने मिति", g.expiry || "—"],
       ...(singleDaysLabel ? [["समय स्थिति", singleDaysLabel]] : []),
     ] : []),
@@ -655,23 +660,45 @@ const GuaranteeBadge = ({ title, g, showRef = false }) => {
           </div>
         ))}
       </div>
-      {/* Multi-expiry APG: one row per date with individual days-remaining label */}
-      {hasMulti && g.expiries?.length > 0 && (
+      {/* Multi-value APG: grouped by entry index — ref + issue + expiry per group */}
+      {hasMulti && (
         <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${gs ? gs.color + "44" : T.border}` }}>
-          {g.expiries.map((exp, i) => {
-            const d = g.remainingDays?.[i] ?? null;
-            const c = daysLabelColor(d);
-            const label = multiDaysLabel(d);
-            return (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, marginTop: i > 0 ? 5 : 0 }}>
-                <span>
-                  <span style={{ color: T.muted }}>म्याद सकिने मिति {toNP(i + 1)}: </span>
-                  <span style={{ fontWeight: 600, color: gs ? gs.color : T.text }}>{exp}</span>
-                </span>
-                <span style={{ fontWeight: 700, color: c, marginLeft: 8, flexShrink: 0 }}>{label}</span>
-              </div>
-            );
-          })}
+          {Array.from({ length: Math.max(
+            hasMultiRef   ? g.refs.length     : 0,
+            hasMultiIssue ? g.issues.length   : 0,
+            hasMultiExp   ? g.expiries.length : 0,
+          ) }, (_, i) => (
+            <div key={i} style={{
+              display: "flex", flexDirection: "column", gap: 4,
+              marginTop: i > 0 ? 7 : 0,
+              paddingTop: i > 0 ? 7 : 0,
+              borderTop: i > 0 ? `1px dashed ${T.border}` : undefined,
+            }}>
+              {hasMultiRef && g.refs[i] != null && (
+                <div style={{ fontSize: 11 }}>
+                  <span style={{ color: T.muted }}>जमानत पत्र नं. {toNP(i + 1)}: </span>
+                  <span style={{ fontWeight: 600, color: T.text }}>{g.refs[i]}</span>
+                </div>
+              )}
+              {hasMultiIssue && g.issues[i] != null && (
+                <div style={{ fontSize: 11 }}>
+                  <span style={{ color: T.muted }}>जारी मिति: </span>
+                  <span style={{ fontWeight: 600, color: T.text }}>{g.issues[i]}</span>
+                </div>
+              )}
+              {hasMultiExp && g.expiries[i] != null && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
+                  <span>
+                    <span style={{ color: T.muted }}>म्याद सकिने मिति: </span>
+                    <span style={{ fontWeight: 600, color: gs ? gs.color : T.text }}>{g.expiries[i]}</span>
+                  </span>
+                  <span style={{ fontWeight: 700, color: daysLabelColor(g.remainingDays?.[i] ?? null), marginLeft: 8, flexShrink: 0 }}>
+                    {multiDaysLabel(g.remainingDays?.[i] ?? null)}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
